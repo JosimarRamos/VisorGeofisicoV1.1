@@ -104,6 +104,7 @@ async function cargarDatosPreestablecidos() {
     try {
         // 1. Carga del terreno 3D desde variable global window.DATA_TERRENO
         updateProgress("Cargando terreno 3D...");
+        await new Promise(r => setTimeout(r, 10));
         if (window.DATA_TERRENO) {
             const data = window.DATA_TERRENO;
             terrenoCrudoData = data; 
@@ -120,6 +121,7 @@ async function cargarDatosPreestablecidos() {
             const nombre = nombresPerfiles[i];
             const perfilNum = i + 1;
             updateProgress(`Cargando perfil ${perfilNum}/${nombresPerfiles.length}...`);
+            await new Promise(r => setTimeout(r, 10));
 
             try {
                 const scriptSrc = `perfil${perfilNum}_data.js`;
@@ -147,6 +149,7 @@ async function cargarDatosPreestablecidos() {
         // 3. Activar la vista 2D del primer perfil válido
         if (primerValido) {
             updateProgress("Procesando proyección 2D...");
+            await new Promise(r => setTimeout(r, 10));
             await activarPerfil2D(primerValido.nombre, primerValido.data);
         }
     } catch (err) {

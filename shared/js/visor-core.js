@@ -111,35 +111,43 @@ async function cargarDatosPreestablecidos() {
             construirTerreno(data, "terreno_web.json");
         }
 
-        // 2. Carga concurrente de TODOS los perfiles desde variable global window.DATA_PERFILES y window.DATA_PROGRESIVAS
-        updateProgress("Cargando perfiles geofísicos...");
-        if (window.DATA_PERFILES && window.DATA_PROGRESIVAS) {
-            const nombresPerfiles = Object.keys(window.DATA_PERFILES);
-            let primerValido = null;
+        // 2. Carga progresiva de perfiles (uno a uno con barra de progreso)
+        window.DATA_PERFILES = {};
+        const nombresPerfiles = ['Perfil1.json', 'Perfil2.json', 'Perfil3.json', 'Perfil4.json'];
+        let primerValido = null;
 
-            nombresPerfiles.forEach((nombre) => {
-                try {
-                    const dataPerfil = window.DATA_PERFILES[nombre];
+        for (let i = 0; i < nombresPerfiles.length; i++) {
+            const nombre = nombresPerfiles[i];
+            const perfilNum = i + 1;
+            updateProgress(`Cargando perfil ${perfilNum}/${nombresPerfiles.length}...`);
+
+            try {
+                const scriptSrc = `perfil${perfilNum}_data.js`;
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = scriptSrc;
+                    s.onload = resolve;
+                    s.onerror = () => reject(new Error(`Error al cargar ${scriptSrc}`));
+                    document.head.appendChild(s);
+                });
+
+                const dataPerfil = window.DATA_PERFILES[nombre];
+                if (dataPerfil) {
                     construirPerfil(dataPerfil, nombre);
-                    
                     const nombreTXT = nombre.replace('Perfil', 'PL').replace('.json', '.txt');
                     const txtData = window.DATA_PROGRESIVAS[nombreTXT];
-                    if (txtData) {
-                        procesarProgresivasTXT(txtData, nombreTXT);
-                    }
-                    if (!primerValido) {
-                        primerValido = { nombre, data: dataPerfil };
-                    }
-                } catch (e) {
-                    console.warn(`Error al cargar preestablecido ${nombre}:`, e);
+                    if (txtData) procesarProgresivasTXT(txtData, nombreTXT);
+                    if (!primerValido) primerValido = { nombre, data: dataPerfil };
                 }
-            });
-
-            // 3. Activar la vista 2D del primer perfil válido de forma síncrona antes de retirar la pantalla de carga
-            if (primerValido) {
-                updateProgress("Procesando proyección 2D...");
-                await activarPerfil2D(primerValido.nombre, primerValido.data);
+            } catch (e) {
+                console.warn(`Error al cargar ${nombre}:`, e);
             }
+        }
+
+        // 3. Activar la vista 2D del primer perfil válido
+        if (primerValido) {
+            updateProgress("Procesando proyección 2D...");
+            await activarPerfil2D(primerValido.nombre, primerValido.data);
         }
     } catch (err) {
         console.error("Error durante la inicialización de datos:", err);

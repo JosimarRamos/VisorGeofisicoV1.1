@@ -106,13 +106,35 @@ Sin `?k=TOKEN` → loading screen muestra "Acceso denegado", no se renderiza nad
 - Feedback: cambia a "✓" verde por 2 segundos.
 - No hay botón compartir dentro del visor (solo en admin).
 
+## Formato de datos
+
+Cada archivo de datos es un `.js` que asigna una variable global:
+
+| Archivo | Variable | Descripción |
+|---|---|---|
+| `terreno_data.js` | `window.DATA_TERRENO` | Malla del terreno (mismo JSON que antes envuelto en `window.DATA_TERRENO = ...`) |
+| `perfil_N_data.js` | `window.DATA_PERFILES['clave.json']` | Perfil geofísico N (asignación directa a `DATA_PERFILES`) |
+| `pl_N_data.js` | `window.DATA_PROGRESIVAS['clave.txt']` | Progresivas del perfil N (en backticks, igual que el TXT original) |
+
+`N` es la posición del archivo (1, 2, 3...). El visor itera cargando `perfil_1_data.js`, `pl_1_data.js`, `perfil_2_data.js`... hasta que un perfil falle.
+
+### Matching espacial
+
+Los PLs se vinculan automáticamente al perfil correcto mediante **coincidencia de coordenadas**:
+
+1. Se calcula el bounding box 2D de cada perfil a partir de todos sus vértices `(X,Y)`.
+2. Para cada PL, se cuenta qué fracción de sus puntos `(E,N)` caen dentro del bbox de cada perfil.
+3. Se asigna greedy: cada PL al perfil con >50% de puntos dentro. Si solo hay un PL candidato dentro del bbox, la precisión es cercana al 100%.
+
+En la UI, la sección "4. DATOS PROGRESIVAS" permite reasignar manualmente mediante dropdown si el auto-match fallara.
+
 ## Cómo agregar un nuevo proyecto
 
 1. Elegir el siguiente índice libre de la tabla de tokens.
 2. Crear carpeta: `proyectos/nuevo-cliente/`
 3. Crear `config.js`: `window.PROYECTO_TOKEN_INDEX = N`
-4. Poner sus datos: `terreno_data.js`, `pl_data.js`, `perfilN_data.js` (sin index.html)
-5. Agregar `<li>` en `admin.html` con el enlace y botón ⧉: `<a class="proj-link" href="index.html?p=nuevo-cliente&k=TOKEN">📌 NOMBRE</a><button class="btn-share" onclick="copiarEnlace('nuevo-cliente','TOKEN',this)" title="Copiar enlace">⧉</button>`
+4. Poner sus datos numerados: `terreno_data.js`, `perfil_1_data.js`, `pl_1_data.js`, etc.
+5. Agregar `<li>` en `admin.html` con el enlace y botón ⧉
 6. `git add . && git commit -m "add proyecto X" && git push`
 7. Compartir al cliente: `.../VisorGeofisico/index.html?p=nuevo-cliente&k=TOKEN`
 

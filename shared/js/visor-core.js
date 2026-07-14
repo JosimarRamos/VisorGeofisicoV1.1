@@ -82,10 +82,8 @@ async function init() {
 
     try {
         await loadScript('proyectos/' + p + '/terreno_data.js');
-        await loadScript('proyectos/' + p + '/pl_data.js');
     } catch(e) {
-        if (lt) lt.innerText = 'Error cargando datos del proyecto';
-        return;
+        // terreno es opcional
     }
 
     try {
@@ -148,6 +146,64 @@ function loadScript(src) {
     });
 }
 
+function yieldThread() {
+    return new Promise(function(resolve) { setTimeout(resolve, 10); });
+}
+
+function calcularBBoxPerfil(data) {
+    var bbox = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+    for (var ci = 0; ci < data.length; ci++) {
+        var v = data[ci].vertices;
+        for (var vi = 0; vi < v.length; vi += 3) {
+            var vx = v[vi], vy = v[vi+1];
+            if (Number.isFinite(vx) && Number.isFinite(vy)) {
+                if (vx < bbox.minX) bbox.minX = vx;
+                if (vx > bbox.maxX) bbox.maxX = vx;
+                if (vy < bbox.minY) bbox.minY = vy;
+                if (vy > bbox.maxY) bbox.maxY = vy;
+            }
+        }
+    }
+    return bbox;
+}
+
+function puntajeMatchPL(textoPL, bbox) {
+    var lineas = textoPL.trim().split('\n');
+    var dentro = 0, total = 0;
+    for (var li = 0; li < lineas.length; li++) {
+        var parts = lineas[li].trim().split(/\s+/);
+        if (parts.length >= 5) {
+            total++;
+            var e = parseFloat(parts[1]), n = parseFloat(parts[2]);
+            if (!isNaN(e) && !isNaN(n) &&
+                e >= bbox.minX && e <= bbox.maxX &&
+                n >= bbox.minY && n <= bbox.maxY) {
+                dentro++;
+            }
+        }
+    }
+    return total > 0 ? dentro / total : 0;
+}
+
+function emparejarPerfilesConPLs(perfiles, pls) {
+    for (var pi = 0; pi < perfiles.length; pi++) {
+        var mejorScore = 0.5;
+        var mejorPL = -1;
+        for (var pj = 0; pj < pls.length; pj++) {
+            if (pls[pj].asignado) continue;
+            var score = puntajeMatchPL(pls[pj].text, perfiles[pi].bbox);
+            if (score > mejorScore) {
+                mejorScore = score;
+                mejorPL = pj;
+            }
+        }
+        if (mejorPL >= 0) {
+            perfiles[pi].txtKey = pls[mejorPL].key;
+            pls[mejorPL].asignado = true;
+        }
+    }
+}
+
 async function cargarDatosPreestablecidos() {
     const loadingScreen = document.getElementById('loading-screen');
     const updateProgress = (text) => {
@@ -156,64 +212,85 @@ async function cargarDatosPreestablecidos() {
     };
 
     try {
-        // 1. Carga del terreno 3D desde variable global window.DATA_TERRENO
-        updateProgress("Cargando terreno 3D...");
-        await new Promise(r => setTimeout(r, 10));
+        // 1. Build terrain if loaded
         if (window.DATA_TERRENO) {
+            updateProgress("Cargando terreno 3D...");
+            await yieldThread();
             const data = window.DATA_TERRENO;
             terrenoCrudoData = data; 
             nombreArchivoTerreno = "terreno_web.json";
             construirTerreno(data, "terreno_web.json");
         }
 
-        // 2. Carga progresiva de perfiles (uno a uno con barra de progreso)
+        // 2. Load perfil + PL files by index
         window.DATA_PERFILES = {};
-        const nombresPerfiles = ['Perfil1.json', 'Perfil2.json', 'Perfil3.json', 'Perfil4.json'];
-        let primerValido = null;
+        window.DATA_PROGRESIVAS = {};
 
-        for (let i = 0; i < nombresPerfiles.length; i++) {
-            const nombre = nombresPerfiles[i];
-            const perfilNum = i + 1;
-            updateProgress(`Cargando perfil ${perfilNum}/${nombresPerfiles.length}...`);
-            await new Promise(r => setTimeout(r, 10));
+        var perfilesCandidatos = [];
+        var plsCandidatos = [];
+        var rutaProyecto = 'proyectos/' + window.PROYECTO_RUTA + '/';
+
+        for (var i = 1; ; i++) {
+            updateProgress('Cargando perfil ' + i + '...');
+            await yieldThread();
 
             try {
-                const scriptSrc = `proyectos/${window.PROYECTO_RUTA}/perfil${perfilNum}_data.js`;
-                await new Promise((resolve, reject) => {
-                    const s = document.createElement('script');
-                    s.src = scriptSrc;
+                await new Promise(function(resolve, reject) {
+                    var s = document.createElement('script');
+                    s.src = rutaProyecto + 'perfil_' + i + '_data.js';
                     s.onload = resolve;
-                    s.onerror = () => reject(new Error(`Error al cargar ${scriptSrc}`));
+                    s.onerror = reject;
                     document.head.appendChild(s);
                 });
+            } catch(e) {
+                break;
+            }
 
-                const dataPerfil = window.DATA_PERFILES[nombre];
-                if (dataPerfil) {
-                    construirPerfil(dataPerfil, nombre);
-                    const nombreTXT = nombre.replace('Perfil', 'PL').replace('.json', '.txt');
-                    const txtData = window.DATA_PROGRESIVAS[nombreTXT];
-                    if (txtData) procesarProgresivasTXT(txtData, nombreTXT);
-                    if (!primerValido) primerValido = { nombre, data: dataPerfil };
-                }
-            } catch (e) {
-                console.warn(`Error al cargar ${nombre}:`, e);
+            var perfilKeys = Object.keys(window.DATA_PERFILES);
+            var perfilKey = perfilKeys[perfilKeys.length - 1];
+            var perfilData = window.DATA_PERFILES[perfilKey];
+            var bbox = calcularBBoxPerfil(perfilData);
+            perfilesCandidatos.push({ key: perfilKey, data: perfilData, bbox: bbox });
+
+            try {
+                await loadScript(rutaProyecto + 'pl_' + i + '_data.js');
+                var plKeys = Object.keys(window.DATA_PROGRESIVAS);
+                plsCandidatos.push({ key: plKeys[plKeys.length - 1], text: window.DATA_PROGRESIVAS[plKeys[plKeys.length - 1]] });
+            } catch(e) {
+                // PL opcional
             }
         }
 
-        // 3. Activar la vista 2D del primer perfil válido
+        // 3. Spatial matching
+        emparejarPerfilesConPLs(perfilesCandidatos, plsCandidatos);
+
+        // 4. Build perfiles with their matched PLs
+        var primerValido = null;
+        for (var j = 0; j < perfilesCandidatos.length; j++) {
+            var p = perfilesCandidatos[j];
+            updateProgress('Construyendo perfil ' + (j+1) + '/' + perfilesCandidatos.length + '...');
+            await yieldThread();
+
+            construirPerfil(p.data, p.key);
+            if (p.txtKey && window.DATA_PROGRESIVAS[p.txtKey]) {
+                procesarProgresivasTXT(window.DATA_PROGRESIVAS[p.txtKey], p.txtKey);
+            }
+            if (!primerValido) primerValido = { nombre: p.key, data: p.data };
+        }
+
+        // 5. Activate 2D view of first perfil
         if (primerValido) {
             updateProgress("Procesando proyección 2D...");
-            await new Promise(r => setTimeout(r, 10));
+            await yieldThread();
             await activarPerfil2D(primerValido.nombre, primerValido.data);
         }
     } catch (err) {
         console.error("Error durante la inicialización de datos:", err);
     } finally {
-        // Cierra la pantalla de carga de manera segura
         if (loadingScreen) {
             loadingScreen.style.opacity = '0';
             loadingScreen.style.visibility = 'hidden';
-            setTimeout(() => loadingScreen.remove(), 500);
+            setTimeout(function() { loadingScreen.remove(); }, 500);
         }
     }
 }
@@ -238,16 +315,6 @@ function procesarProgresivasTXT(text, filename) {
     if(data.length > 0) {
         data.sort((a,b) => a.s - b.s); 
         progresivasCargadas[filename] = data;
-        
-        let alt1 = filename.replace('PL', 'Perfil').replace('.txt', '.json');
-        let alt2 = filename.replace('.txt', '.json');
-        
-        if (perfilesRawData[alt1] && !profileToTxtMap[alt1]) {
-            profileToTxtMap[alt1] = filename;
-        } else if (perfilesRawData[alt2] && !profileToTxtMap[alt2]) {
-            profileToTxtMap[alt2] = filename;
-        }
-        
         renderListaProgresivas();
         actualizarEstadoVinculoTXT(); 
     }
@@ -630,20 +697,43 @@ function vincularEventosUI() {
     bindEvent('file-loader', 'change', (e) => {
         const files = e.target.files;
         for (let file of files) {
+            if (!file.name.toLowerCase().endsWith('.js')) continue;
+
             const reader = new FileReader();
             reader.onload = function(event) {
-                if (file.name.toLowerCase().endsWith('.txt')) {
-                    procesarProgresivasTXT(event.target.result, file.name);
-                } else {
-                    try {
-                        const data = JSON.parse(event.target.result);
-                        if (data.tipo === "terreno") {
-                            terrenoCrudoData = data; nombreArchivoTerreno = file.name;
-                            construirTerreno(data, file.name);
-                        } else if (Array.isArray(data)) {
-                            construirPerfil(data, file.name);
+                try {
+                    var perfilKeysB = Object.keys(window.DATA_PERFILES || {});
+                    var plKeysB = Object.keys(window.DATA_PROGRESIVAS || {});
+                    var terrenoB = !!window.DATA_TERRENO;
+
+                    var script = document.createElement('script');
+                    script.textContent = event.target.result;
+                    document.head.appendChild(script);
+
+                    var perfilKeysA = Object.keys(window.DATA_PERFILES || {});
+                    var plKeysA = Object.keys(window.DATA_PROGRESIVAS || {});
+                    var terrenoA = !!window.DATA_TERRENO;
+
+                    if (!terrenoB && terrenoA && window.DATA_TERRENO) {
+                        terrenoCrudoData = window.DATA_TERRENO;
+                        construirTerreno(window.DATA_TERRENO, file.name);
+                    }
+
+                    for (var ki = 0; ki < perfilKeysA.length; ki++) {
+                        var k = perfilKeysA[ki];
+                        if (perfilKeysB.indexOf(k) < 0) {
+                            construirPerfil(window.DATA_PERFILES[k], k);
                         }
-                    } catch (err) { alert("Error al procesar el archivo JSON: " + err.message); }
+                    }
+
+                    for (var kj = 0; kj < plKeysA.length; kj++) {
+                        var pk = plKeysA[kj];
+                        if (plKeysB.indexOf(pk) < 0) {
+                            procesarProgresivasTXT(window.DATA_PROGRESIVAS[pk], pk);
+                        }
+                    }
+                } catch (err) {
+                    alert("Error al procesar " + file.name + ": " + err.message);
                 }
             };
             reader.readAsText(file);

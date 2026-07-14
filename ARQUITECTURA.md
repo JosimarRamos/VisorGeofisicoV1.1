@@ -101,10 +101,10 @@ Sin `?k=TOKEN` → loading screen muestra "Acceso denegado", no se renderiza nad
 
 ## Botón Compartir
 
-- En el visor (`index.html`), el sidebar tiene un botón "📋 Compartir" al final.
-- Copia al portapapeles la URL actual con `?p=PROYECTO&k=TOKEN`.
-- Feedback: cambia a "✓ Enlace copiado" por 2 segundos.
-- En admin (`admin.html`): botón similar que copia `?k=admin-2024`.
+- En `admin.html`, cada proyecto tiene un botón ⧉ al lado del nombre.
+- Copia al portapapeles la URL completa: `index.html?p=PROYECTO&k=TOKEN`.
+- Feedback: cambia a "✓" verde por 2 segundos.
+- No hay botón compartir dentro del visor (solo en admin).
 
 ## Cómo agregar un nuevo proyecto
 
@@ -112,9 +112,9 @@ Sin `?k=TOKEN` → loading screen muestra "Acceso denegado", no se renderiza nad
 2. Crear carpeta: `proyectos/nuevo-cliente/`
 3. Crear `config.js`: `window.PROYECTO_TOKEN_INDEX = N`
 4. Poner sus datos: `terreno_data.js`, `pl_data.js`, `perfilN_data.js` (sin index.html)
-5. Agregar `<li>` en `admin.html` con la URL: `?p=nuevo-cliente&k=TOKEN`
+5. Agregar `<li>` en `admin.html` con el enlace y botón ⧉: `<a class="proj-link" href="index.html?p=nuevo-cliente&k=TOKEN">📌 NOMBRE</a><button class="btn-share" onclick="copiarEnlace('nuevo-cliente','TOKEN',this)" title="Copiar enlace">⧉</button>`
 6. `git add . && git commit -m "add proyecto X" && git push`
-7. Compartir al cliente: `.../VisorGeofisico/?p=nuevo-cliente&k=TOKEN`
+7. Compartir al cliente: `.../VisorGeofisico/index.html?p=nuevo-cliente&k=TOKEN`
 
 ## Publicación
 

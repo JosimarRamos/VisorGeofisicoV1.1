@@ -48,15 +48,46 @@ const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
 let raycastTimeout = null; 
 
-function init() {
+async function init() {
+    var p = new URLSearchParams(location.search).get('p');
+    var k = new URLSearchParams(location.search).get('k');
+    var lt = document.getElementById('loading-text');
+
+    if (!p) {
+        if (lt) lt.innerText = 'Parámetro "p" requerido';
+        return;
+    }
+
+    try {
+        await new Promise(function(resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'proyectos/' + p + '/config.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    } catch(e) {
+        if (lt) lt.innerText = 'Proyecto no encontrado: ' + p;
+        return;
+    }
+
     if (window.TOKEN_POOL && typeof window.PROYECTO_TOKEN_INDEX === 'number') {
-        var k = new URLSearchParams(location.search).get('k');
         if (k !== window.TOKEN_POOL[window.PROYECTO_TOKEN_INDEX]) {
-            var lt = document.getElementById('loading-text');
             if (lt) lt.innerText = '🔒 Acceso denegado\nToken inválido';
             return;
         }
     }
+
+    window.PROYECTO_RUTA = p;
+
+    try {
+        await loadScript('proyectos/' + p + '/terreno_data.js');
+        await loadScript('proyectos/' + p + '/pl_data.js');
+    } catch(e) {
+        if (lt) lt.innerText = 'Error cargando datos del proyecto';
+        return;
+    }
+
     const container = document.getElementById('canvas-3d');
     canvas2D = document.getElementById('canvas-2d');
     ctx2D = canvas2D.getContext('2d', { alpha: false });
@@ -102,6 +133,16 @@ function init() {
     cargarDatosPreestablecidos();
 }
 
+function loadScript(src) {
+    return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
 async function cargarDatosPreestablecidos() {
     const loadingScreen = document.getElementById('loading-screen');
     const updateProgress = (text) => {
@@ -132,7 +173,7 @@ async function cargarDatosPreestablecidos() {
             await new Promise(r => setTimeout(r, 10));
 
             try {
-                const scriptSrc = `perfil${perfilNum}_data.js`;
+                const scriptSrc = `proyectos/${window.PROYECTO_RUTA}/perfil${perfilNum}_data.js`;
                 await new Promise((resolve, reject) => {
                     const s = document.createElement('script');
                     s.src = scriptSrc;

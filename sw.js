@@ -3,6 +3,7 @@ const PRECACHE = [
   'shared/css/visor-styles.css',
   'shared/js/three.min.js',
   'shared/js/OrbitControls.js',
+  'shared/js/tokens.js',
   'shared/js/visor-core.js'
 ];
 

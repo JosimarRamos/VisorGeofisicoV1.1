@@ -10,7 +10,8 @@
 
 ```
 VisorGeofisico/
-├── index.html                    ← Lista de proyectos (solo con ?k=admin-2024)
+├── index.html                    ← Visor único (recibe ?p=proyecto&k=token)
+├── admin.html                    ← Lista de proyectos (solo con ?k=admin-2024)
 ├── sw.js                         ← Service Worker (precache + cache dinámico)
 ├── ARQUITECTURA.md               ← Este archivo
 ├── shared/
@@ -22,8 +23,7 @@ VisorGeofisico/
 │       ├── tokens.js             ← Pool de 20 tokens de proyectos + admin
 │       └── visor-core.js         ← Motor del visor (render, UI, carga progresiva)
 └── proyectos/
-    └── proyecto-mariscal-01/
-        ├── index.html
+    └── proyecto-mariscal-01/     ← Solo datos y config.js (sin index.html)
         ├── config.js             ← window.PROYECTO_TOKEN_INDEX
         ├── terreno_data.js       ← window.DATA_TERRENO
         ├── pl_data.js            ← window.DATA_PROGRESIVAS
@@ -36,14 +36,16 @@ VisorGeofisico/
 ## Flujo de carga
 
 1. `index.html` carga en `<head>`:
-   `tokens.js` → `config.js` → `three.min.js` → `OrbitControls.js` → `terreno_data.js` → `pl_data.js`
+   `tokens.js` → `three.min.js` → `OrbitControls.js`
 2. `visor-core.js` se ejecuta al final del `<body>`:
-   a. **Token guard**: verifica `?k=` contra `TOKEN_POOL[PROYECTO_TOKEN_INDEX]`. Si inválido → loading screen muestra "Acceso denegado" y no renderiza nada.
-   b. `initScene()` → renderer 3D, cámara, controles, UI
-   c. Carga terreno (window.DATA_TERRENO)
-   d. Carga perfiles 1 a 4 (dinámico con yield y barra de progreso)
-   e. Activa vista 2D del primer perfil
-   f. Oculta loading screen
+   a. Lee `?p=` (proyecto) y `?k=` (token) de la URL
+   b. Carga dinámicamente `proyectos/<p>/config.js`
+   c. Valida `k` contra `TOKEN_POOL[PROYECTO_TOKEN_INDEX]`. Si inválido → loading screen "Acceso denegado", no renderiza nada.
+   d. Carga dinámicamente `terreno_data.js` y `pl_data.js`
+   e. `initScene()` → renderer 3D, cámara, controles, UI
+   f. Carga perfiles 1 a 4 (dinámico con yield y barra de progreso)
+   g. Activa vista 2D del primer perfil
+   h. Oculta loading screen
 
 ## Protección por token
 
@@ -59,8 +61,8 @@ window.ADMIN_TOKEN = 'admin-2024';
 window.PROYECTO_TOKEN_INDEX = 0;
 ```
 
-**URL a compartir con el cliente:** `.../proyecto-mariscal-01/?k=vismar-2024`
-**URL del admin:** `.../VisorGeofisico/?k=admin-2024`
+**URL a compartir con el cliente:** `.../VisorGeofisico/?p=proyecto-mariscal-01&k=vismar-2024`
+**URL del admin:** `.../VisorGeofisico/admin.html?k=admin-2024`
 
 Sin `?k=TOKEN` → loading screen muestra "Acceso denegado", no se renderiza nada.
 
@@ -88,32 +90,31 @@ Sin `?k=TOKEN` → loading screen muestra "Acceso denegado", no se renderiza nad
 | 17     | `proy17-q5r2k`  | disponible              |
 | 18     | `proy18-r6v3m`  | disponible              |
 | 19     | `proy19-s7n4p`  | disponible              |
-| Admin  | `admin-2024`    | Raíz (lista proyectos)  |
+| Admin  | `admin-2024`    | admin.html              |
 
 ## Service Worker (`sw.js`)
 
-- **Install**: precachea `shared/css/` + `shared/js/three.min.js` + `OrbitControls.js` + `visor-core.js`
+- **Install**: precachea `shared/css/` + `shared/js/` (three, OrbitControls, tokens, visor-core)
 - **Fetch**: cache-first con actualización dinámica (cachea todo lo que pasa)
 - **Activate**: limpia caches viejos, `clients.claim()` para control inmediato
 - Al cambiar versión de la app: incrementar `CACHE` en `sw.js` (ej. `visor-cache-v2`)
 
 ## Botón Compartir
 
-- En cada proyecto, el sidebar tiene un botón "📋 Compartir" al final.
-- Copia al portapapeles la URL actual con `?k=TOKEN` del proyecto.
+- En el visor (`index.html`), el sidebar tiene un botón "📋 Compartir" al final.
+- Copia al portapapeles la URL actual con `?p=PROYECTO&k=TOKEN`.
 - Feedback: cambia a "✓ Enlace copiado" por 2 segundos.
-- En la raíz (admin): botón similar que copia `?k=admin-2024`.
+- En admin (`admin.html`): botón similar que copia `?k=admin-2024`.
 
 ## Cómo agregar un nuevo proyecto
 
-1. Elegir el siguiente índice libre de la tabla de tokens (mirar tabla arriba).
+1. Elegir el siguiente índice libre de la tabla de tokens.
 2. Crear carpeta: `proyectos/nuevo-cliente/`
-3. Copiar `index.html` de `proyecto-mariscal-01/` y cambiar `<title>`.
-4. Crear `config.js`: `window.PROYECTO_TOKEN_INDEX = N` (N = índice elegido).
-5. Poner sus datos: `terreno_data.js`, `pl_data.js`, `perfilN_data.js`.
-6. Agregar `<li>` en raíz `index.html` (detrás de `?k=admin-2024`).
-7. `git add . && git commit -m "add proyecto X" && git push`
-8. Compartir al cliente: `https://.../proyectos/nuevo-cliente/?k=TOKEN`
+3. Crear `config.js`: `window.PROYECTO_TOKEN_INDEX = N`
+4. Poner sus datos: `terreno_data.js`, `pl_data.js`, `perfilN_data.js` (sin index.html)
+5. Agregar `<li>` en `admin.html` con la URL: `?p=nuevo-cliente&k=TOKEN`
+6. `git add . && git commit -m "add proyecto X" && git push`
+7. Compartir al cliente: `.../VisorGeofisico/?p=nuevo-cliente&k=TOKEN`
 
 ## Publicación
 

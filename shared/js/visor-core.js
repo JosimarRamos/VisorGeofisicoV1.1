@@ -88,49 +88,54 @@ async function init() {
         return;
     }
 
-    const container = document.getElementById('canvas-3d');
-    canvas2D = document.getElementById('canvas-2d');
-    ctx2D = canvas2D.getContext('2d', { alpha: false });
+    try {
+        const container = document.getElementById('canvas-3d');
+        canvas2D = document.getElementById('canvas-2d');
+        ctx2D = canvas2D.getContext('2d', { alpha: false });
 
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
-    
-    const ch = container.clientHeight || window.innerHeight;
-    const cw = container.clientWidth || window.innerWidth / 2;
-    camera = new THREE.PerspectiveCamera(45, cw / ch, 1, 100000);
-    camera.position.set(500, -800, 500);
-    camera.up.set(0, 0, 1); 
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+        
+        const ch = container.clientHeight || window.innerHeight;
+        const cw = container.clientWidth || window.innerWidth / 2;
+        camera = new THREE.PerspectiveCamera(45, cw / ch, 1, 100000);
+        camera.position.set(500, -800, 500);
+        camera.up.set(0, 0, 1); 
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setSize(cw, ch);
-    renderer.setPixelRatio(dpr);
-    container.appendChild(renderer.domElement);
+        renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(cw, ch);
+        renderer.setPixelRatio(dpr);
+        container.appendChild(renderer.domElement);
 
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
-    dirLight.position.set(2000, 2000, 10000);
-    scene.add(dirLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        dirLight.position.set(2000, 2000, 10000);
+        scene.add(dirLight);
 
-    const gridHelper = new THREE.GridHelper(10000, 100, 0x333333, 0x1a1a1a);
-    gridHelper.rotation.x = Math.PI / 2;
-    scene.add(gridHelper);
+        const gridHelper = new THREE.GridHelper(10000, 100, 0x333333, 0x1a1a1a);
+        gridHelper.rotation.x = Math.PI / 2;
+        scene.add(gridHelper);
 
-    const sg = new THREE.SphereGeometry(1, 16, 16);
-    const sm = new THREE.MeshBasicMaterial({color: 0xff1744, depthTest: false});
-    laserMesh = new THREE.Mesh(sg, sm);
-    laserMesh.renderOrder = 999;
-    laserMesh.visible = false;
-    scene.add(laserMesh);
+        const sg = new THREE.SphereGeometry(1, 16, 16);
+        const sm = new THREE.MeshBasicMaterial({color: 0xff1744, depthTest: false});
+        laserMesh = new THREE.Mesh(sg, sm);
+        laserMesh.renderOrder = 999;
+        laserMesh.visible = false;
+        scene.add(laserMesh);
 
-    vincularEventosUI();
-    animate();
-    setTimeout(onWindowResize, 100);
+        vincularEventosUI();
+        animate();
+        setTimeout(onWindowResize, 100);
 
-    cargarDatosPreestablecidos();
+        cargarDatosPreestablecidos();
+    } catch(e) {
+        if (lt) lt.innerText = 'Error al inicializar el visor: ' + e.message;
+        console.error('visor-core init error:', e);
+    }
 }
 
 function loadScript(src) {
@@ -1461,4 +1466,8 @@ function actualizarUILista(nombre, tipo, rawData = null) {
     container.appendChild(div);
 }
 
-init();
+init().catch(function(e) {
+    console.error('visor-core fatal:', e);
+    var lt = document.getElementById('loading-text');
+    if (lt) lt.innerText = 'Error al cargar el visor';
+});

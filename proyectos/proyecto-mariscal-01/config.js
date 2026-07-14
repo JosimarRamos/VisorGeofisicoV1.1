@@ -1,1 +1,1 @@
-window.PROYECTO_TOKEN = 'vismar-2024';
+window.PROYECTO_TOKEN_INDEX = 0;

@@ -49,6 +49,14 @@ const dpr = Math.min(window.devicePixelRatio || 1, 2);
 let raycastTimeout = null; 
 
 function init() {
+    if (window.TOKEN_POOL && typeof window.PROYECTO_TOKEN_INDEX === 'number') {
+        var k = new URLSearchParams(location.search).get('k');
+        if (k !== window.TOKEN_POOL[window.PROYECTO_TOKEN_INDEX]) {
+            var lt = document.getElementById('loading-text');
+            if (lt) lt.innerText = '🔒 Acceso denegado\nToken inválido';
+            return;
+        }
+    }
     const container = document.getElementById('canvas-3d');
     canvas2D = document.getElementById('canvas-2d');
     ctx2D = canvas2D.getContext('2d', { alpha: false });
@@ -688,6 +696,22 @@ function vincularEventosUI() {
                 }
             }
             if (e.touches.length === 0) isDragging2D = false;
+        });
+    }
+
+    var btnCompartir = document.getElementById('btn-compartir');
+    if (btnCompartir) {
+        btnCompartir.addEventListener('click', function() {
+            var token = window.TOKEN_POOL && typeof window.PROYECTO_TOKEN_INDEX === 'number'
+                ? window.TOKEN_POOL[window.PROYECTO_TOKEN_INDEX]
+                : '';
+            var url = location.origin + location.pathname.split('?')[0] + '?k=' + token;
+            navigator.clipboard.writeText(url).then(function() {
+                this.textContent = '✓ Enlace copiado';
+                setTimeout(function() { this.textContent = '📋 Compartir'; }.bind(this), 2000);
+            }.bind(this)).catch(function() {
+                prompt('Copia el enlace manualmente:', url);
+            });
         });
     }
 }

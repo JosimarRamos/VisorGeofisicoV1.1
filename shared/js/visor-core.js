@@ -38,20 +38,27 @@ let panY = 0;
 
 const rawMeshCanvas = document.createElement('canvas');
 const ctxRaw = rawMeshCanvas.getContext('2d', { alpha: true });
-ctxRaw.imageSmoothingEnabled = false;
-ctxRaw.mozImageSmoothingEnabled = false;
-ctxRaw.webkitImageSmoothingEnabled = false;
-ctxRaw.imageSmoothingQuality = 'low';
-let escalaRaw = 1;
 
 const canvas2DCache = document.createElement('canvas');
 const ctxCache = canvas2DCache.getContext('2d', { alpha: false });
-ctxCache.imageSmoothingEnabled = false;
-ctxCache.mozImageSmoothingEnabled = false;
-ctxCache.webkitImageSmoothingEnabled = false;
-ctxCache.imageSmoothingQuality = 'low';
 
 let transX = 0, transY = 0, escalaGlobal = 1, minZ_grid = 0;
+
+function disableSmoothing(ctx) {
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+    try {
+        ctx.imageSmoothingQuality = 'low';
+    } catch (e) {
+        // Algunos navegadores no soportan imageSmoothingQuality
+    }
+}
+
+disableSmoothing(ctxRaw);
+disableSmoothing(ctxCache);
+let escalaRaw = 1;
 let factorEV = 2.0;
 const dpr = Math.min(window.devicePixelRatio || 1, 2); 
 
@@ -985,10 +992,11 @@ function resize2DCanvas() {
     let logicalH = rect.height - headerH;
     if (logicalH < 0) logicalH = 0;
     
-    canvas2D.width = logicalW * dpr;
-    canvas2D.height = logicalH * dpr;
+    canvas2D.width = Math.round(logicalW * dpr);
+    canvas2D.height = Math.round(logicalH * dpr);
     canvas2D.style.width = `${logicalW}px`;
     canvas2D.style.height = `${logicalH}px`;
+    disableSmoothing(ctx2D);
     
     if (logicalH > 0) {
         if (!isProcessing2D && dataProyeccion2D) {
@@ -1504,7 +1512,8 @@ async function generarRawMeshAsync(renderId) {
     rawMeshCanvas.width = Math.max(1024, Math.round(targetW));
     
     escalaRaw = rawMeshCanvas.width / rngS;
-    rawMeshCanvas.height = Math.max(1, rngZ * escalaRaw);
+    rawMeshCanvas.height = Math.max(1, Math.round(rngZ * escalaRaw));
+    disableSmoothing(ctxRaw);
     
     ctxRaw.clearRect(0, 0, rawMeshCanvas.width, rawMeshCanvas.height);
     
@@ -1579,6 +1588,7 @@ function reconstruirCacheScreen() {
     
     canvas2DCache.width = canvas2D.width;
     canvas2DCache.height = canvas2D.height;
+    disableSmoothing(ctxCache);
     
     ctxCache.fillStyle = "#0a0a0a";
     ctxCache.fillRect(0, 0, canvas2DCache.width, canvas2DCache.height);

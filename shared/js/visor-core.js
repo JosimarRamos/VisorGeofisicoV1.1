@@ -48,6 +48,21 @@ const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
 let raycastTimeout = null; 
 
+const CONFIG_2D = {
+    paddingLeft: 60,
+    paddingRight: 60,
+    paddingTop: 40,
+    getPaddingBottom: () => window.innerWidth <= 768 ? 120 : 60,
+    maxCanvasWidth: 4096,
+    chunkFaces: 10000,
+    cacheThrottleMs: 120
+};
+
+let renderRequerido = true;
+function pedirRender() {
+    renderRequerido = true;
+}
+
 async function init() {
     var p = new URLSearchParams(location.search).get('p');
     var k = new URLSearchParams(location.search).get('k');
@@ -109,6 +124,7 @@ async function init() {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
+        controls.addEventListener('change', pedirRender);
 
         // Iluminacion mejorada: HemisphereLight cielo+suelo reemplaza AmbientLight plano
         // Valores calibrados al 70% de intensidad de relieve (valor inicial del slider)
@@ -132,7 +148,7 @@ async function init() {
         gridHelper.rotation.x = Math.PI / 2;
         scene.add(gridHelper);
 
-        const sg = new THREE.SphereGeometry(1, 16, 16);
+        const sg = new THREE.SphereGeometry(1, 8, 6);
         const sm = new THREE.MeshBasicMaterial({color: 0xff1744, depthTest: false});
         laserMesh = new THREE.Mesh(sg, sm);
         laserMesh.renderOrder = 999;
@@ -161,7 +177,7 @@ function loadScript(src) {
 }
 
 function yieldThread() {
-    return new Promise(function(resolve) { setTimeout(resolve, 10); });
+    return new Promise(function(resolve) { requestAnimationFrame(resolve); });
 }
 
 function calcularBBoxPerfil(data) {
@@ -365,21 +381,38 @@ function renderListaProgresivas() {
         });
 
         div.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size: 12px; font-weight:bold; color:#ddd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            <div class="pl-item-header">
+                <span class="pl-name-text">
                     📄 ${txtName}
                 </span>
-                <button class="btn-action btn-del-txt" style="color:var(--danger-color); font-size:14px; font-weight:bold;" title="Eliminar archivo TXT">&times;</button>
+                <button class="btn-action btn-del-txt pl-btn-delete" title="Eliminar progresivas TXT" aria-label="Eliminar progresivas ${txtName}">&times;</button>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap: 5px;">
-                <span style="font-size:10px; color:#888;">Asignar a:</span>
-                <select class="txt-select-profile" style="background:#222; border:1px solid #444; color:#fff; font-size:11px; padding:2px 4px; border-radius:4px; flex-grow:1; outline:none; cursor:pointer;">
+            <div class="pl-assign-wrapper">
+                <span class="pl-assign-label">Asignar a:</span>
+                <select class="txt-select-profile pl-assign-select" aria-label="Asignar progresivas ${txtName} a un perfil">
                     ${optionsHtml}
                 </select>
             </div>
         `;
 
-        div.querySelector('.btn-del-txt').addEventListener('click', () => {
+        div.querySelector('.btn-del-txt').addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            if (!btn.classList.contains('confirming')) {
+                btn.classList.add('confirming');
+                btn.style.color = '#ff9800'; // Naranja
+                btn.title = "Haz clic de nuevo para confirmar";
+                btn.setAttribute('aria-label', "Confirmar eliminación de progresivas");
+                btn.innerHTML = '¿Seguro?';
+                setTimeout(() => {
+                    btn.classList.remove('confirming');
+                    btn.style.color = 'var(--danger-color)';
+                    btn.title = "Eliminar progresivas TXT";
+                    btn.setAttribute('aria-label', `Eliminar progresivas ${txtName}`);
+                    btn.innerHTML = '&times;';
+                }, 3000);
+                return;
+            }
+
             delete progresivasCargadas[txtName];
             if (currentProfile) delete profileToTxtMap[currentProfile];
             renderListaProgresivas();
@@ -566,8 +599,8 @@ function cambiarPerfilSiguiente(direccion) {
 function centrarVistaEnProgresiva(S) {
     if (!dataProyeccion2D) return;
     const logicalW = canvas2D.width / dpr;
-    const paddingLeft = 60;
-    const paddingRight = 60;
+    const paddingLeft = CONFIG_2D.paddingLeft;
+    const paddingRight = CONFIG_2D.paddingRight;
     const w_canvas = logicalW - (paddingLeft + paddingRight);
     
     panX = (logicalW / 2) - paddingLeft - (w_canvas - dataProyeccion2D.longitud * escalaGlobal) / 2 - (S - dataProyeccion2D.minS) * escalaGlobal;
@@ -588,8 +621,8 @@ function aplicarZoomCentrado(nuevoZoom) {
 
     zoom2D = nuevoZoom;
 
-    const paddingLeft = 60, paddingRight = 60, paddingTop = 40;
-    const paddingBottom = window.innerWidth <= 768 ? 120 : 60;
+    const paddingLeft = CONFIG_2D.paddingLeft, paddingRight = CONFIG_2D.paddingRight, paddingTop = CONFIG_2D.paddingTop;
+    const paddingBottom = CONFIG_2D.getPaddingBottom();
     const w_canvas = logicalW - (paddingLeft + paddingRight);
     const h_canvas = logicalH - (paddingTop + paddingBottom);
     
@@ -631,6 +664,24 @@ function vincularEventosUI() {
     bindEvent('btn-prev-profile', 'click', () => cambiarPerfilSiguiente(-1));
     bindEvent('btn-next-profile', 'click', () => cambiarPerfilSiguiente(1));
 
+    bindEvent('btn-fullscreen', 'click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error(`Error al intentar activar pantalla completa: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+        const btn = document.getElementById('btn-fullscreen');
+        if (btn) {
+            btn.innerHTML = document.fullscreenElement ? '🗗' : '⛶';
+        }
+        setTimeout(onWindowResize, 100);
+    });
+
     const searchInput = document.getElementById('search-progressive');
 
     searchInput.addEventListener('input', (e) => {
@@ -668,11 +719,20 @@ function vincularEventosUI() {
         }
     });
 
-    bindEvent('chk-terreno', 'change', (e) => { if (terrenoMesh) terrenoMesh.visible = e.target.checked; });
+    bindEvent('chk-terreno', 'change', (e) => { 
+        if (terrenoMesh) {
+            terrenoMesh.visible = e.target.checked; 
+            pedirRender();
+        }
+    });
 
-    // chk-hipsometrico: reconstruye el terreno con/sin gradiente de colores
+    // chk-hipsometrico: solo actualiza el buffer de colores en tiempo real (P3D-02)
     bindEvent('chk-hipsometrico', 'change', () => {
-        if (terrenoCrudoData) construirTerreno(terrenoCrudoData, nombreArchivoTerreno || 'Terreno');
+        if (terrenoMesh) {
+            actualizarColoresTerreno();
+        } else if (terrenoCrudoData) {
+            construirTerreno(terrenoCrudoData, nombreArchivoTerreno || 'Terreno');
+        }
     });
 
     // relief-intensity: ajusta la relacion AmbientLight/DirectionalLight en tiempo real
@@ -688,6 +748,7 @@ function vincularEventosUI() {
         if (hemi) hemi.intensity  = 0.55 - t * 0.38; // 0.55 → 0.17
         if (sun)  sun.intensity   = 0.45 + t * 0.90; // 0.45 → 1.35
         if (fill) fill.intensity  = 0.18 - t * 0.10; // 0.18 → 0.08
+        pedirRender();
     });
 
     bindEvent('opacity-terreno', 'input', (e) => { 
@@ -701,6 +762,7 @@ function vincularEventosUI() {
             } else {
                 terrenoMesh.material.opacity = val; 
             }
+            pedirRender();
         } 
     });
     
@@ -709,6 +771,7 @@ function vincularEventosUI() {
             const cortinasTransparentes = e.target.checked;
             terrenoMesh.material[1].opacity = cortinasTransparentes ? 0.05 : parseFloat(document.getElementById('opacity-terreno').value);
             terrenoMesh.material[1].depthWrite = !cortinasTransparentes;
+            pedirRender();
         }
     });
 
@@ -859,7 +922,14 @@ function vincularEventosUI() {
 
 }
 
-function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+function animate() { 
+    requestAnimationFrame(animate); 
+    const controlesCambiaron = controls.update(); 
+    if (controlesCambiaron || renderRequerido) {
+        renderer.render(scene, camera); 
+        renderRequerido = false;
+    }
+}
 
 function onWindowResize() {
     const container = document.getElementById('canvas-3d');
@@ -868,6 +938,7 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
     resize2DCanvas();
+    pedirRender();
 }
 
 function resize2DCanvas() {
@@ -980,6 +1051,32 @@ function calcularVertexColors(verticesEmpaquetados, usarHipsometrico) {
         colors[i * 3 + 2] = c.b;
     }
     return colors;
+}
+
+function actualizarColoresTerreno() {
+    if (!terrenoMesh || !terrenoMesh.geometry) return;
+    const geometry = terrenoMesh.geometry;
+    const posAttr = geometry.getAttribute('position');
+    if (!posAttr) return;
+
+    const verticesEmpaquetados = posAttr.array;
+    const usarHips = document.getElementById('chk-hipsometrico') ? document.getElementById('chk-hipsometrico').checked : true;
+
+    const vertexColorsArray = calcularVertexColors(verticesEmpaquetados, usarHips);
+
+    let colorAttr = geometry.getAttribute('color');
+    if (colorAttr) {
+        const arr = colorAttr.array;
+        if (arr.length === vertexColorsArray.length) {
+            arr.set(vertexColorsArray);
+            colorAttr.needsUpdate = true;
+        } else {
+            geometry.setAttribute('color', new THREE.BufferAttribute(vertexColorsArray, 3));
+        }
+    } else {
+        geometry.setAttribute('color', new THREE.BufferAttribute(vertexColorsArray, 3));
+    }
+    pedirRender();
 }
 
 function construirTerreno(data, nombreArchivo) {
@@ -1117,6 +1214,7 @@ function construirTerreno(data, nombreArchivo) {
     }
     
     actualizarUILista(nombreArchivo, 'terreno');
+    pedirRender();
 }
 
 function construirPerfil(data, nombreArchivo) {
@@ -1162,6 +1260,7 @@ function construirPerfil(data, nombreArchivo) {
     
     renderListaProgresivas();
     actualizarEstadoVinculoTXT(); 
+    pedirRender();
 }
 
 async function activarPerfil2D(nombre, data) {
@@ -1169,6 +1268,15 @@ async function activarPerfil2D(nombre, data) {
     
     document.getElementById('main-wrapper').classList.remove('is-2d-collapsed');
     setTimeout(onWindowResize, 310);
+
+    // Fade out para transicion visual suave (UX-06)
+    if (canvas2D) canvas2D.classList.add('canvas-fade-out');
+
+    // Mostrar overlay de progreso (UX-02)
+    const overlay = document.getElementById('progress-overlay-2d');
+    const progressText = document.getElementById('progress-text-2d');
+    if (overlay) overlay.style.display = 'flex';
+    if (progressText) progressText.innerText = 'Calculando coordenadas...';
 
     isProcessing2D = true;
     currentRenderId++;
@@ -1213,7 +1321,12 @@ async function activarPerfil2D(nombre, data) {
         }
     });
 
-    if (countVertices === 0) { isProcessing2D = false; return; }
+    if (countVertices === 0) { 
+        isProcessing2D = false; 
+        const overlay = document.getElementById('progress-overlay-2d');
+        if (overlay) overlay.style.display = 'none';
+        return; 
+    }
 
     let txtName = profileToTxtMap[nombre];
     let txtData = txtName ? progresivasCargadas[txtName] : null;
@@ -1302,7 +1415,12 @@ async function activarPerfil2D(nombre, data) {
         }
 
         await new Promise(r => setTimeout(r, 0));
-        if (myRenderId !== currentRenderId) return; 
+        if (myRenderId !== currentRenderId) {
+            const overlay = document.getElementById('progress-overlay-2d');
+            if (overlay) overlay.style.display = 'none';
+            if (canvas2D) canvas2D.classList.remove('canvas-fade-out');
+            return; 
+        }
 
         estratosProyectados.push({ color: capa.color, caras: capa.caras, sCoords: sCoords, zCoords: zCoords });
     }
@@ -1345,7 +1463,11 @@ async function generarRawMeshAsync(renderId) {
     const rngS = Math.max(dataProyeccion2D.maxS - dataProyeccion2D.minS, 1);
     const rngZ = Math.max(dataProyeccion2D.maxZ_grid - dataProyeccion2D.minZ_grid, 1);
 
-    rawMeshCanvas.width = 8192; 
+    // Resolucion dinamica acotada: maximo 4096px, ajustado a pantalla (P2D-01)
+    const logicalW = canvas2D.width / dpr;
+    const targetW = Math.min(logicalW * 2.5, 4096);
+    rawMeshCanvas.width = Math.max(1024, Math.round(targetW)); 
+    
     escalaRaw = rawMeshCanvas.width / rngS;
     rawMeshCanvas.height = Math.max(1, rngZ * escalaRaw);
     
@@ -1354,11 +1476,17 @@ async function generarRawMeshAsync(renderId) {
     let totalCaras = 0, carasProcesadas = 0;
     dataProyeccion2D.estratos.forEach(c => totalCaras += c.caras.length / 3);
     const titleEl = document.getElementById('active-profile-title');
+    const progressText = document.getElementById('progress-text-2d');
 
     const CHUNK_FACES = 10000; 
+    let lastCacheUpdate = 0; // Throttle timestamp (P2D-02)
 
     for (let capa of dataProyeccion2D.estratos) {
-        if (renderId !== currentRenderId) return; 
+        if (renderId !== currentRenderId) {
+            const overlay = document.getElementById('progress-overlay-2d');
+            if (overlay) overlay.style.display = 'none';
+            return;
+        }
 
         ctxRaw.fillStyle = capa.color;
         ctxRaw.strokeStyle = capa.color; 
@@ -1385,14 +1513,30 @@ async function generarRawMeshAsync(renderId) {
             ctxRaw.fill(); ctxRaw.stroke();
 
             carasProcesadas += (limit - i) / 3;
-            reconstruirCacheScreen(); 
-            titleEl.innerText = `Renderizando [ ${Math.round((carasProcesadas / totalCaras) * 100)}% ]...`;
+            
+            // Reconstruccion de pantalla con throttle de 120ms (P2D-02)
+            if (Date.now() - lastCacheUpdate > 120 || carasProcesadas === totalCaras) {
+                reconstruirCacheScreen(); 
+                lastCacheUpdate = Date.now();
+            }
+            
+            const pctText = `Renderizando [ ${Math.round((carasProcesadas / totalCaras) * 100)}% ]...`;
+            titleEl.innerText = pctText;
+            if (progressText) progressText.innerText = `Procesando proyección: ${Math.round((carasProcesadas / totalCaras) * 100)}%`;
             
             await new Promise(resolve => requestAnimationFrame(resolve));
-            if (renderId !== currentRenderId) return;
+            if (renderId !== currentRenderId) {
+                const overlay = document.getElementById('progress-overlay-2d');
+                if (overlay) overlay.style.display = 'none';
+                if (canvas2D) canvas2D.classList.remove('canvas-fade-out');
+                return;
+            }
         }
     }
     reconstruirCacheScreen(); 
+    const overlay = document.getElementById('progress-overlay-2d');
+    if (overlay) overlay.style.display = 'none'; // Ocultar overlay al terminar (UX-02)
+    if (canvas2D) canvas2D.classList.remove('canvas-fade-out'); // Fade in suave (UX-06)
 }
 
 function reconstruirCacheScreen() {
@@ -1410,11 +1554,10 @@ function reconstruirCacheScreen() {
     const logicalW = canvas2D.width / dpr;
     const logicalH = canvas2D.height / dpr;
     
-    const isMobile = window.innerWidth <= 768;
-    const paddingLeft = 60;
-    const paddingRight = 60;
-    const paddingTop = 40;
-    const paddingBottom = isMobile ? 120 : 60;
+    const paddingLeft = CONFIG_2D.paddingLeft;
+    const paddingRight = CONFIG_2D.paddingRight;
+    const paddingTop = CONFIG_2D.paddingTop;
+    const paddingBottom = CONFIG_2D.getPaddingBottom();
 
     const w_canvas = logicalW - (paddingLeft + paddingRight);
     const h_canvas = logicalH - (paddingTop + paddingBottom);
@@ -1524,7 +1667,10 @@ function actualizarHUDCentral() {
 
     if (cursorMundoS < dataProyeccion2D.minS || cursorMundoS > dataProyeccion2D.maxS) {
         laserInfo.style.display = 'none';
-        laserMesh.visible = false;
+        if (laserMesh.visible) {
+            laserMesh.visible = false;
+            pedirRender();
+        }
         return;
     }
 
@@ -1538,8 +1684,17 @@ function actualizarHUDCentral() {
     }
 
     if (Number.isFinite(xScene) && Number.isFinite(yScene) && Number.isFinite(zScene)) {
+        const viejaX = laserMesh.position.x;
+        const viejaY = laserMesh.position.y;
+        const viejaZ = laserMesh.position.z;
+        const viejaVis = laserMesh.visible;
+        
         laserMesh.position.set(xScene, yScene, zScene);
         laserMesh.visible = true;
+        
+        if (!viejaVis || viejaX !== xScene || viejaY !== yScene || viejaZ !== zScene) {
+            pedirRender();
+        }
     }
 
     document.getElementById('hud-s').innerText = cursorMundoS.toFixed(1) + " m";
@@ -1598,33 +1753,51 @@ function actualizarUILista(nombre, tipo, rawData = null) {
     div.className = 'layer-item';
 
     div.innerHTML = `
-        <div style="display:flex; align-items:center; width:100%; gap:8px;">
-            <label class="switch" style="transform: scale(0.8); transform-origin: left center; margin:0; flex-shrink:0;">
-                <input type="checkbox" checked id="chk-vis-${safeId}">
+        <div class="layer-item-container">
+            <label class="switch layer-switch-wrapper">
+                <input type="checkbox" checked id="chk-vis-${safeId}" aria-label="Mostrar u ocultar capa ${nombre.replace('.json', '')}">
                 <span class="slider"></span>
             </label>
             
-            <div id="btn-select-${safeId}" style="flex-grow:1; overflow:hidden; cursor:pointer; display:flex; align-items:center; padding: 4px 0;" title="Click para proyectar en vista 2D">
-                <span id="name-${safeId}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight:500; color:#ddd; font-size: 13px; transition: color 0.2s;">
+            <div id="btn-select-${safeId}" class="layer-select-btn" title="Click para proyectar en vista 2D" role="button" tabindex="0" aria-label="Proyectar perfil ${nombre.replace('.json', '')} en vista 2D">
+                <span id="name-${safeId}" class="layer-name-text">
                     ${nombre.replace(".json", "")}
                 </span>
             </div>
 
-            <div class="layer-actions" style="flex-shrink:0;">
-                <button class="btn-action btn-del" style="color:var(--danger-color); padding: 0 4px; font-size:14px; font-weight:bold;" title="Eliminar archivo">&times;</button>
+            <div class="layer-actions-wrapper">
+                <button class="btn-action btn-del layer-btn-delete" title="Eliminar capa" aria-label="Eliminar capa ${nombre.replace('.json', '')}">&times;</button>
             </div>
         </div>`;
 
     div.querySelector(`#chk-vis-${safeId}`).addEventListener('change', (e) => {
         if (tipo === 'terreno' && terrenoMesh) { terrenoMesh.visible = e.target.checked; document.getElementById('chk-terreno').checked = e.target.checked; } 
         else if (tipo === 'perfil' && perfilesCargados[nombre]) { perfilesCargados[nombre].forEach(mesh => mesh.visible = e.target.checked); }
+        pedirRender();
     });
 
     if (tipo === 'perfil') {
         div.querySelector(`#btn-select-${safeId}`).addEventListener('click', () => activarPerfil2D(nombre, rawData));
     }
     
-    div.querySelector('.btn-del').addEventListener('click', () => {
+    div.querySelector('.btn-del').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        if (!btn.classList.contains('confirming')) {
+            btn.classList.add('confirming');
+            btn.style.color = '#ff9800'; // Naranja
+            btn.title = "Haz clic de nuevo para confirmar";
+            btn.setAttribute('aria-label', "Confirmar eliminación de capa");
+            btn.innerHTML = '¿Seguro?';
+            setTimeout(() => {
+                btn.classList.remove('confirming');
+                btn.style.color = 'var(--danger-color)';
+                btn.title = "Eliminar capa";
+                btn.setAttribute('aria-label', `Eliminar capa ${nombre.replace('.json', '')}`);
+                btn.innerHTML = '&times;';
+            }, 3000);
+            return;
+        }
+
         if (tipo === 'terreno' && terrenoMesh) { 
             scene.remove(terrenoMesh); liberarMemoriaMesh(terrenoMesh); terrenoMesh = null; terrenoCrudoData = null; nombreArchivoTerreno = null; 
         } else if (tipo === 'perfil' && perfilesCargados[nombre]) {
@@ -1647,6 +1820,7 @@ function actualizarUILista(nombre, tipo, rawData = null) {
             renderListaProgresivas();
             actualizarEstadoVinculoTXT(); 
         }
+        pedirRender();
     });
     
     container.appendChild(div);

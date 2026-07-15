@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor Geofísico - Proyectos</title>
     <script src="shared/js/tokens.js"></script>
+    <link rel="stylesheet" href="shared/css/visor-styles.css">
     <style>
-        body { margin:0; background:#0f0f0f; color:#e0e0e0; font-family:'Segoe UI',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
-        h1 { color:#29b6f6; }
+        body { margin:0; background: var(--bg-color); color: var(--text-color); font-family:'Segoe UI',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
+        h1 { color: var(--accent-color); }
         ul { list-style:none; padding:0; min-width:400px; }
         li { margin:12px 0; display:flex; align-items:center; gap:8px; }
-        .proj-link { color:#29b6f6; text-decoration:none; font-size:18px; padding:10px 20px; border:1px solid #3a3a3a; border-radius:8px; flex:1; text-align:center; transition:background .2s; display:block; }
-        .proj-link:hover { background:#1e1e1e; }
-        .btn-share { background:none; border:1px solid #3a3a3a; border-radius:8px; color:#888; cursor:pointer; font-size:20px; padding:8px 12px; transition:background .2s,color .2s; line-height:1; }
-        .btn-share:hover { background:#1e1e1e; color:#29b6f6; }
+        .proj-link { color: var(--accent-color); text-decoration:none; font-size:18px; padding:10px 20px; border:1px solid var(--border-color); border-radius:8px; flex:1; text-align:center; transition:background .2s; display:block; }
+        .proj-link:hover { background: var(--sidebar-bg); }
+        .btn-share { background:none; border:1px solid var(--border-color); border-radius:8px; color:#888; cursor:pointer; font-size:20px; padding:8px 12px; transition:background .2s,color .2s; line-height:1; }
+        .btn-share:hover { background: var(--sidebar-bg); color: var(--accent-color); }
     </style>
 </head>
 <body>
@@ -25,11 +26,17 @@ if (new URLSearchParams(location.search).get('k') !== window.ADMIN_TOKEN) {
     <h1>🗺️ Visores Geofísicos</h1>
     <p style="color:#888;">Proyectos activos:</p>
     <ul>
-        <li><a class="proj-link" href="index.html?p=proyecto-mariscal-01&k=vismar-2024">📌 MARISCAL_01</a><button class="btn-share" onclick="copiarEnlace('proyecto-mariscal-01','vismar-2024',this)" title="Copiar enlace">⧉</button></li>
-        <li><a class="proj-link" href="index.html?p=Proyecto-kerem-ejemplo&k=proy01-a8f3k">📌 KEREM EJEMPLO</a><button class="btn-share" onclick="copiarEnlace('Proyecto-kerem-ejemplo','proy01-a8f3k',this)" title="Copiar enlace">⧉</button></li>
+        <li><a class="proj-link" href="#" onclick="abrirProyecto('proyecto-mariscal-01', 0, event)">📌 MARISCAL_01</a><button class="btn-share" onclick="copiarEnlace('proyecto-mariscal-01',0,this)" title="Copiar enlace">⧉</button></li>
+        <li><a class="proj-link" href="#" onclick="abrirProyecto('Proyecto-kerem-ejemplo', 1, event)">📌 KEREM EJEMPLO</a><button class="btn-share" onclick="copiarEnlace('Proyecto-kerem-ejemplo',1,this)" title="Copiar enlace">⧉</button></li>
     </ul>
     <script>
-    function copiarEnlace(proyecto, token, btn) {
+    function abrirProyecto(proyecto, tokenIdx, event) {
+        if (event) event.preventDefault();
+        const token = window.TOKEN_POOL[tokenIdx];
+        window.location.href = 'index.html?p=' + proyecto + '&k=' + token;
+    }
+    function copiarEnlace(proyecto, tokenIdx, btn) {
+        const token = window.TOKEN_POOL[tokenIdx];
         var url = location.origin + location.pathname.replace(/\/[^\/]*$/,'') + '/index.html?p=' + proyecto + '&k=' + token;
         navigator.clipboard.writeText(url).then(function() {
             var t = btn.textContent;

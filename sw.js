@@ -1,5 +1,7 @@
-const CACHE = 'visor-cache-v3';
+const CACHE = 'visor-cache-v5';
 const PRECACHE = [
+  './',
+  'index.html',
   'shared/css/visor-styles.css',
   'shared/js/three.min.js',
   'shared/js/OrbitControls.js',

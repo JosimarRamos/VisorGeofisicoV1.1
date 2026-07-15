@@ -81,6 +81,10 @@ body {
 #canvas-3d { width: 100%; height: 100%; }
 
 #canvas-2d { flex-grow: 1; width: 100%; height: 100%; display: block; background-color: #0a0a0a; cursor: grab; outline: none; touch-action: none; overscroll-behavior: none; /* CONTROL DE NITIDEZ NATIVA (Nulo impacto en rendimiento) */
+    image-rendering: -moz-crisp-edges;         /* Firefox antiguo */
+    image-rendering: -webkit-crisp-edges;      /* Safari / Chrome antiguo */
+    image-rendering: pixelated;                 /* Chrome, Edge, Safari moderno y Opera */
+    image-rendering: crisp-edges;               /* Estándar CSS CSS4 */
 }
 #canvas-2d:active { cursor: grabbing; }
 

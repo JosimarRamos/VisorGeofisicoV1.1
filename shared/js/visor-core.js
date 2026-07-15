@@ -38,14 +38,18 @@ let panY = 0;
 
 const rawMeshCanvas = document.createElement('canvas');
 const ctxRaw = rawMeshCanvas.getContext('2d', { alpha: true });
-ctxRaw.imageSmoothingEnabled = true;
-ctxRaw.imageSmoothingQuality = 'high';
+ctxRaw.imageSmoothingEnabled = false;
+ctxRaw.mozImageSmoothingEnabled = false;
+ctxRaw.webkitImageSmoothingEnabled = false;
+ctxRaw.imageSmoothingQuality = 'low';
 let escalaRaw = 1;
 
 const canvas2DCache = document.createElement('canvas');
 const ctxCache = canvas2DCache.getContext('2d', { alpha: false });
-ctxCache.imageSmoothingEnabled = true;
-ctxCache.imageSmoothingQuality = 'high';
+ctxCache.imageSmoothingEnabled = false;
+ctxCache.mozImageSmoothingEnabled = false;
+ctxCache.webkitImageSmoothingEnabled = false;
+ctxCache.imageSmoothingQuality = 'low';
 
 let transX = 0, transY = 0, escalaGlobal = 1, minZ_grid = 0;
 let factorEV = 2.0;
@@ -111,8 +115,10 @@ async function init() {
         const container = document.getElementById('canvas-3d');
         canvas2D = document.getElementById('canvas-2d');
         ctx2D = canvas2D.getContext('2d', { alpha: false });
-        ctx2D.imageSmoothingEnabled = true;
-        ctx2D.imageSmoothingQuality = 'high';
+        ctx2D.imageSmoothingEnabled = false;
+        ctx2D.mozImageSmoothingEnabled = false;
+        ctx2D.webkitImageSmoothingEnabled = false;
+        ctx2D.imageSmoothingQuality = 'low';
 
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0d1520); // fondo azul-noche oscuro
@@ -1629,9 +1635,11 @@ function reconstruirCacheScreen() {
         ctxCache.restore();
     }
 
-    const screenWidth = rngS * escalaGlobal;
-    const screenHeight = rngZ * escalaGlobal * factorEV;
-    ctxCache.drawImage(rawMeshCanvas, transX, transY - screenHeight, screenWidth, screenHeight);
+    const screenWidth = Math.round(rngS * escalaGlobal);
+    const screenHeight = Math.round(rngZ * escalaGlobal * factorEV);
+    const drawX = Math.round(transX);
+    const drawY = Math.round(transY - screenHeight);
+    ctxCache.drawImage(rawMeshCanvas, drawX, drawY, screenWidth, screenHeight);
 
     ctxCache.restore();
     dibu2D();

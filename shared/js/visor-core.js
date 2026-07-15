@@ -59,7 +59,7 @@ function disableSmoothing(ctx) {
 disableSmoothing(ctxRaw);
 disableSmoothing(ctxCache);
 let escalaRaw = 1;
-let factorEV = 2.0;
+let factorEV = 1.0;
 const dpr = Math.min(window.devicePixelRatio || 1, 2); 
 
 
@@ -1508,13 +1508,24 @@ async function generarRawMeshAsync(renderId) {
 
     // Resolucion dinamica acotada: maximo 4096px, ajustado a pantalla y DPR para mejor calidad (P2D-01)
     const logicalW = canvas2D.width / dpr;
-    const targetW = Math.min(logicalW * dpr * 2.0, 4096);
-    rawMeshCanvas.width = Math.max(1024, Math.round(targetW));
-    
-    escalaRaw = rawMeshCanvas.width / rngS;
-    rawMeshCanvas.height = Math.max(1, Math.round(rngZ * escalaRaw));
+    const logicalH = canvas2D.height / dpr;
+    const paddingLeft = CONFIG_2D.paddingLeft;
+    const paddingRight = CONFIG_2D.paddingRight;
+    const paddingTop = CONFIG_2D.paddingTop;
+    const paddingBottom = CONFIG_2D.getPaddingBottom();
+
+    const w_canvas = Math.max(1, logicalW - (paddingLeft + paddingRight));
+    const h_canvas = Math.max(1, logicalH - (paddingTop + paddingBottom));
+    const baseEscala = Math.min(w_canvas / rngS, h_canvas / (rngZ * factorEV));
+
+    const screenWidth = Math.max(1, Math.round(rngS * baseEscala));
+    const screenHeight = Math.max(1, Math.round(rngZ * baseEscala * factorEV));
+
+    rawMeshCanvas.width = Math.min(4096, Math.max(1024, screenWidth * dpr));
+    rawMeshCanvas.height = Math.max(1, screenHeight * dpr);
     disableSmoothing(ctxRaw);
     
+    escalaRaw = rawMeshCanvas.width / rngS;
     ctxRaw.clearRect(0, 0, rawMeshCanvas.width, rawMeshCanvas.height);
     
     let totalCaras = 0, carasProcesadas = 0;
@@ -1554,7 +1565,7 @@ async function generarRawMeshAsync(renderId) {
 
                 ctxRaw.moveTo(x0, y0); ctxRaw.lineTo(x1, y1); ctxRaw.lineTo(x2, y2); ctxRaw.lineTo(x0, y0); 
             }
-            ctxRaw.fill(); ctxRaw.stroke();
+            ctxRaw.fill();
 
             carasProcesadas += (limit - i) / 3;
             

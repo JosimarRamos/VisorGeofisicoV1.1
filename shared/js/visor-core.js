@@ -45,7 +45,6 @@ const ctxCache = canvas2DCache.getContext('2d', { alpha: false });
 
 let transX = 0, transY = 0, escalaGlobal = 1, minZ_grid = 0;
 let factorEV = 2.0;
-let debounceVectorTimeout = null;
 const dpr = Math.min(window.devicePixelRatio || 1, 2); 
 
 
@@ -1487,10 +1486,10 @@ async function generarRawMeshAsync(renderId) {
     const rngS = Math.max(dataProyeccion2D.maxS - dataProyeccion2D.minS, 1);
     const rngZ = Math.max(dataProyeccion2D.maxZ_grid - dataProyeccion2D.minZ_grid, 1);
 
-    // Resolucion dinamica acotada: maximo 4096px, ajustado a pantalla (P2D-01)
+    // Resolucion dinamica acotada: maximo 4096px, ajustado a pantalla y DPR para mejor calidad (P2D-01)
     const logicalW = canvas2D.width / dpr;
-    const targetW = Math.min(logicalW * 2.5, 4096);
-    rawMeshCanvas.width = Math.max(1024, Math.round(targetW)); 
+    const targetW = Math.min(logicalW * dpr * 2.0, 4096);
+    rawMeshCanvas.width = Math.max(1024, Math.round(targetW));
     
     escalaRaw = rawMeshCanvas.width / rngS;
     rawMeshCanvas.height = Math.max(1, rngZ * escalaRaw);
@@ -1563,13 +1562,8 @@ async function generarRawMeshAsync(renderId) {
     if (canvas2D) canvas2D.classList.remove('canvas-fade-out'); // Fade in suave (UX-06)
 }
 
-function reconstruirCacheScreen(highRes = false) {
+function reconstruirCacheScreen() {
     if (!dataProyeccion2D || !canvas2D) return;
-    
-    if (debounceVectorTimeout) {
-        clearTimeout(debounceVectorTimeout);
-        debounceVectorTimeout = null;
-    }
     
     canvas2DCache.width = canvas2D.width;
     canvas2DCache.height = canvas2D.height;
@@ -1629,66 +1623,9 @@ function reconstruirCacheScreen(highRes = false) {
         ctxCache.restore();
     }
 
-    if (highRes) {
-        // Renderizado vectorial directo de alta definición
-        for (let capa of dataProyeccion2D.estratos) {
-            ctxCache.fillStyle = capa.color;
-            ctxCache.strokeStyle = capa.color;
-            ctxCache.lineWidth = 0.5;
-            
-            ctxCache.beginPath();
-            const sCoords = capa.sCoords;
-            const zCoords = capa.zCoords;
-            const caras = capa.caras;
-            
-            // Viewport bounds in world coordinates
-            const viewMinS = dataProyeccion2D.minS + (-transX) / escalaGlobal;
-            const viewMaxS = dataProyeccion2D.minS + (logicalW - transX) / escalaGlobal;
-            const viewMinZ = dataProyeccion2D.minZ_grid + (transY - logicalH) / (escalaGlobal * factorEV);
-            const viewMaxZ = dataProyeccion2D.minZ_grid + (transY) / (escalaGlobal * factorEV);
-            
-            for (let i = 0; i < caras.length; i += 3) {
-                const idx0 = caras[i];
-                const idx1 = caras[i+1];
-                const idx2 = caras[i+2];
-                
-                const s0 = sCoords[idx0], z0 = zCoords[idx0];
-                const s1 = sCoords[idx1], z1 = zCoords[idx1];
-                const s2 = sCoords[idx2], z2 = zCoords[idx2];
-                
-                const triMinS = Math.min(s0, s1, s2);
-                const triMaxS = Math.max(s0, s1, s2);
-                const triMinZ = Math.min(z0, z1, z2);
-                const triMaxZ = Math.max(z0, z1, z2);
-                
-                if (triMaxS < viewMinS || triMinS > viewMaxS || triMaxZ < viewMinZ || triMinZ > viewMaxZ) {
-                    continue;
-                }
-                
-                let x0 = transX + (s0 - dataProyeccion2D.minS) * escalaGlobal;
-                let y0 = transY - (z0 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
-                let x1 = transX + (s1 - dataProyeccion2D.minS) * escalaGlobal;
-                let y1 = transY - (z1 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
-                let x2 = transX + (s2 - dataProyeccion2D.minS) * escalaGlobal;
-                let y2 = transY - (z2 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
-                
-                ctxCache.moveTo(x0, y0);
-                ctxCache.lineTo(x1, y1);
-                ctxCache.lineTo(x2, y2);
-                ctxCache.closePath();
-            }
-            ctxCache.fill();
-        }
-    } else {
-        const screenWidth = rngS * escalaGlobal;
-        const screenHeight = rngZ * escalaGlobal * factorEV;
-        ctxCache.drawImage(rawMeshCanvas, transX, transY - screenHeight, screenWidth, screenHeight);
-        
-        // Temporizador para redibujar en alta calidad vectorial
-        debounceVectorTimeout = setTimeout(() => {
-            reconstruirCacheScreen(true);
-        }, 150);
-    }
+    const screenWidth = rngS * escalaGlobal;
+    const screenHeight = rngZ * escalaGlobal * factorEV;
+    ctxCache.drawImage(rawMeshCanvas, transX, transY - screenHeight, screenWidth, screenHeight);
 
     ctxCache.restore();
     dibu2D();

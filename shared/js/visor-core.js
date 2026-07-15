@@ -92,7 +92,8 @@ async function init() {
         ctx2D = canvas2D.getContext('2d', { alpha: false });
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
+        scene.background = new THREE.Color(0x0d1520); // fondo azul-noche oscuro
+        scene.fog = new THREE.FogExp2(0x0d1520, 0.000028); // niebla sutil de distancia
         
         const ch = container.clientHeight || window.innerHeight;
         const cw = container.clientWidth || window.innerWidth / 2;
@@ -109,10 +110,23 @@ async function init() {
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        dirLight.position.set(2000, 2000, 10000);
-        scene.add(dirLight);
+        // Iluminacion mejorada: HemisphereLight cielo+suelo reemplaza AmbientLight plano
+        // Valores calibrados al 70% de intensidad de relieve (valor inicial del slider)
+        const hemiLight = new THREE.HemisphereLight(0x9ab8d4, 0x3d5a30, 0.28); // cielo azul + suelo verde
+        hemiLight.name = 'hemiLight';
+        scene.add(hemiLight);
+
+        // Luz solar principal — angulo rasante desde el NO (convencion cartografica)
+        const sunLight = new THREE.DirectionalLight(0xfff0d0, 1.08); // blanco calido
+        sunLight.position.set(-1500, 800, 2200);
+        sunLight.name = 'sunLight';
+        scene.add(sunLight);
+
+        // Luz de relleno fria desde el lado opuesto (simula cielo difuso)
+        const fillLight = new THREE.DirectionalLight(0x8baac4, 0.11);
+        fillLight.position.set(1500, -600, 1200);
+        fillLight.name = 'fillLight';
+        scene.add(fillLight);
 
         const gridHelper = new THREE.GridHelper(10000, 100, 0x333333, 0x1a1a1a);
         gridHelper.rotation.x = Math.PI / 2;
@@ -655,17 +669,25 @@ function vincularEventosUI() {
     });
 
     bindEvent('chk-terreno', 'change', (e) => { if (terrenoMesh) terrenoMesh.visible = e.target.checked; });
-    
-    bindEvent('color-terreno', 'input', (e) => { 
-        document.getElementById('hex-terreno').innerText = e.target.value.toUpperCase();
-        if (terrenoMesh) { 
-            if (Array.isArray(terrenoMesh.material)) {
-                terrenoMesh.material[0].color.set(e.target.value);
-                terrenoMesh.material[1].color.set(e.target.value);
-            } else {
-                terrenoMesh.material.color.set(e.target.value); 
-            }
-        } 
+
+    // chk-hipsometrico: reconstruye el terreno con/sin gradiente de colores
+    bindEvent('chk-hipsometrico', 'change', () => {
+        if (terrenoCrudoData) construirTerreno(terrenoCrudoData, nombreArchivoTerreno || 'Terreno');
+    });
+
+    // relief-intensity: ajusta la relacion AmbientLight/DirectionalLight en tiempo real
+    bindEvent('relief-intensity', 'input', (e) => {
+        const val = parseInt(e.target.value);
+        const el = document.getElementById('relief-val');
+        if (el) el.innerText = val + '%';
+        // 0% = escena plana (hemi fuerte, sol debil) | 100% = maximo contraste (hemi minimo, sol fuerte)
+        const t = val / 100;
+        const hemi = scene.getObjectByName('hemiLight');
+        const sun  = scene.getObjectByName('sunLight');
+        const fill = scene.getObjectByName('fillLight');
+        if (hemi) hemi.intensity  = 0.55 - t * 0.38; // 0.55 → 0.17
+        if (sun)  sun.intensity   = 0.45 + t * 0.90; // 0.45 → 1.35
+        if (fill) fill.intensity  = 0.18 - t * 0.10; // 0.18 → 0.08
     });
 
     bindEvent('opacity-terreno', 'input', (e) => { 
@@ -691,7 +713,7 @@ function vincularEventosUI() {
     });
 
     bindEvent('z-limit-input', 'change', () => { 
-        if (terrenoCrudoData) construirTerreno(terrenoCrudoData, nombreArchivoTerreno || "Terreno"); 
+        if (terrenoCrudoData) construirTerreno(terrenoCrudoData, nombreArchivoTerreno || 'Terreno'); 
     });
 
     bindEvent('file-loader', 'change', (e) => {
@@ -898,6 +920,68 @@ function liberarMemoriaMesh(mesh) {
     }
 }
 
+// --- Utilidad: interpola entre paradas de color ---
+function interpolarGradienteZ(t, paradas) {
+    if (t <= paradas[0].t) return { r: paradas[0].r, g: paradas[0].g, b: paradas[0].b };
+    if (t >= paradas[paradas.length - 1].t) {
+        const u = paradas[paradas.length - 1];
+        return { r: u.r, g: u.g, b: u.b };
+    }
+    for (let i = 0; i < paradas.length - 1; i++) {
+        const a = paradas[i], b = paradas[i + 1];
+        if (t >= a.t && t <= b.t) {
+            const f = (t - a.t) / (b.t - a.t);
+            return { r: a.r + f * (b.r - a.r), g: a.g + f * (b.g - a.g), b: a.b + f * (b.b - a.b) };
+        }
+    }
+    return { r: 0.5, g: 0.5, b: 0.5 };
+}
+
+// Paradas de color hipsometrico: terreno andino natural (verde valle → marron ladera → gris roca)
+const GRADIENTE_HIPSOMETRICO = [
+    { t: 0.00, r: 0.22, g: 0.40, b: 0.18 }, // verde oscuro (fondos/quebradas)
+    { t: 0.25, r: 0.32, g: 0.50, b: 0.22 }, // verde medio (laderas bajas)
+    { t: 0.50, r: 0.55, g: 0.47, b: 0.28 }, // marron tierra (laderas medias)
+    { t: 0.72, r: 0.65, g: 0.57, b: 0.40 }, // marron claro (zonas altas)
+    { t: 0.88, r: 0.75, g: 0.69, b: 0.57 }, // gris arena (cimas)
+    { t: 1.00, r: 0.82, g: 0.79, b: 0.72 }  // gris piedra (puntos mas altos)
+];
+
+function calcularVertexColors(verticesEmpaquetados, usarHipsometrico) {
+    const n = verticesEmpaquetados.length / 3;
+    const colors = new Float32Array(verticesEmpaquetados.length);
+    
+    if (!usarHipsometrico) {
+        // Color solido neutro cuando esta desactivado el modo hipsometrico
+        for (let i = 0; i < n; i++) {
+            colors[i * 3]     = 0.30;
+            colors[i * 3 + 1] = 0.40;
+            colors[i * 3 + 2] = 0.20;
+        }
+        return colors;
+    }
+    
+    // Calcular rango Z real del terreno
+    let zMin = Infinity, zMax = -Infinity;
+    for (let i = 2; i < verticesEmpaquetados.length; i += 3) {
+        const z = verticesEmpaquetados[i] + (centerOffset ? centerOffset.z : 0);
+        if (z < zMin) zMin = z;
+        if (z > zMax) zMax = z;
+    }
+    const zRango = zMax > zMin ? (zMax - zMin) : 1;
+    
+    // Asignar color por altitud a cada vertice
+    for (let i = 0; i < n; i++) {
+        const z = verticesEmpaquetados[i * 3 + 2] + (centerOffset ? centerOffset.z : 0);
+        const t = Math.min(1, Math.max(0, (z - zMin) / zRango));
+        const c = interpolarGradienteZ(t, GRADIENTE_HIPSOMETRICO);
+        colors[i * 3]     = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+    }
+    return colors;
+}
+
 function construirTerreno(data, nombreArchivo) {
     const inputVal = parseFloat(document.getElementById('z-limit-input').value);
     const zLimite = isNaN(inputVal) ? -999999 : inputVal;
@@ -979,7 +1063,13 @@ function construirTerreno(data, nombreArchivo) {
     for (let i = 0; i < carasCortina.length; i++) procesarCara(carasCortina[i], carasCortEmpaquetadas);
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verticesEmpaquetados), 3));
+    const posArray = new Float32Array(verticesEmpaquetados);
+    geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    
+    // Vertex colors hipsometricos
+    const usarHips = document.getElementById('chk-hipsometrico') ? document.getElementById('chk-hipsometrico').checked : true;
+    const vertexColorsArray = calcularVertexColors(verticesEmpaquetados, usarHips);
+    geometry.setAttribute('color', new THREE.BufferAttribute(vertexColorsArray, 3));
     
     const allIndices = new Uint32Array(carasSupEmpaquetadas.length + carasCortEmpaquetadas.length);
     allIndices.set(carasSupEmpaquetadas, 0);
@@ -993,16 +1083,22 @@ function construirTerreno(data, nombreArchivo) {
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere(); 
 
-    const baseColor = document.getElementById('color-terreno').value;
     const baseOpacity = parseFloat(document.getElementById('opacity-terreno').value);
     const cortinasTrans = document.getElementById('chk-cortinas').checked;
 
-    const matNormal = new THREE.MeshLambertMaterial({ 
-        color: baseColor, transparent: true, opacity: baseOpacity, side: THREE.DoubleSide 
+    // MeshPhongMaterial con vertex colors — produce relieve suave y visible
+    const matNormal = new THREE.MeshPhongMaterial({ 
+        vertexColors: true,
+        shininess: 10,
+        transparent: true, 
+        opacity: baseOpacity, 
+        side: THREE.DoubleSide 
     });
     
-    const matCortina = new THREE.MeshLambertMaterial({ 
-        color: baseColor, transparent: true, 
+    const matCortina = new THREE.MeshPhongMaterial({ 
+        vertexColors: true,
+        shininess: 5,
+        transparent: true, 
         opacity: cortinasTrans ? 0.05 : baseOpacity, 
         depthWrite: !cortinasTrans,
         side: THREE.DoubleSide 

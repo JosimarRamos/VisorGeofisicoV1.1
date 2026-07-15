@@ -210,8 +210,38 @@ input[type="range"] { background: #222; border: 1px solid #444; color: white; bo
     #sidebar.collapsed { width: 0; border-right: none; box-shadow: none; }
     #sidebar-content { padding-bottom: 120px !important; }
     #btn-toggle-2d { transform: rotate(0deg); }
+    
     #main-wrapper.is-2d-collapsed #view-2d { flex: 0 0 44px !important; height: 44px !important; overflow: hidden; }
     #main-wrapper.is-2d-collapsed #btn-toggle-2d { transform: rotate(180deg); }
+    
+    /* Cuando la vista 2D está colapsada en móvil */
+    #main-wrapper.is-2d-collapsed #view-2d-header {
+        cursor: pointer;
+        background: linear-gradient(135deg, #1b3a4b 0%, #112233 100%);
+        border-top: 1px solid var(--accent-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    /* Ocultar los controles del header colapsado en móvil */
+    #main-wrapper.is-2d-collapsed #view-2d-header > * {
+        display: none !important;
+    }
+    
+    /* Añadir indicador amigable de expandir */
+    #main-wrapper.is-2d-collapsed #view-2d-header::after {
+        content: "▲ MOSTRAR PERFIL 2D";
+        color: var(--accent-color);
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 2px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        animation: pulseExpand 2s infinite ease-in-out;
+    }
     
     #view-2d-header { padding: 10px 8px; font-size: 11px; }
     .header-title-text { display: none; }
@@ -224,6 +254,11 @@ input[type="range"] { background: #222; border: 1px solid #444; color: white; bo
     .hud-label { font-size: 8px; }
     .hud-value { font-size: 12px; }
     .hud-value.highlight { font-size: 13px; }
+}
+
+@keyframes pulseExpand {
+    0%, 100% { opacity: 0.75; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.03); }
 }
 
 /* Clases CSS extraídas del JS dinámico (Fase 3 - C-01) */

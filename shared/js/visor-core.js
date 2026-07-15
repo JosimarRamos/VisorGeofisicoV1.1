@@ -44,7 +44,10 @@ const canvas2DCache = document.createElement('canvas');
 const ctxCache = canvas2DCache.getContext('2d', { alpha: false });
 
 let transX = 0, transY = 0, escalaGlobal = 1, minZ_grid = 0;
+let factorEV = 2.0;
+let debounceVectorTimeout = null;
 const dpr = Math.min(window.devicePixelRatio || 1, 2); 
+
 
 let raycastTimeout = null; 
 
@@ -617,7 +620,7 @@ function aplicarZoomCentrado(nuevoZoom) {
     const cy = logicalH / 2;
 
     const sCentro = dataProyeccion2D.minS + (cx - transX) / escalaGlobal;
-    const zCentro = dataProyeccion2D.minZ_grid + (transY - cy) / escalaGlobal;
+    const zCentro = dataProyeccion2D.minZ_grid + (transY - cy) / (escalaGlobal * factorEV);
 
     zoom2D = nuevoZoom;
 
@@ -628,14 +631,14 @@ function aplicarZoomCentrado(nuevoZoom) {
     
     const rngS = Math.max(dataProyeccion2D.maxS - dataProyeccion2D.minS, 1);
     const rngZ = Math.max(dataProyeccion2D.maxZ_grid - dataProyeccion2D.minZ_grid, 1);
-    const baseEscala = Math.min(w_canvas / rngS, h_canvas / rngZ);
+    const baseEscala = Math.min(w_canvas / rngS, h_canvas / (rngZ * factorEV));
     const nuevaEscalaGlobal = baseEscala * zoom2D;
 
     const nuevaBaseX = paddingLeft + (w_canvas - rngS * nuevaEscalaGlobal) / 2;
-    const nuevaBaseY = paddingTop + (h_canvas + rngZ * nuevaEscalaGlobal) / 2;
+    const nuevaBaseY = paddingTop + (h_canvas + rngZ * nuevaEscalaGlobal * factorEV) / 2;
 
     panX = cx - nuevaBaseX - (sCentro - dataProyeccion2D.minS) * nuevaEscalaGlobal;
-    panY = cy - nuevaBaseY + (zCentro - dataProyeccion2D.minZ_grid) * nuevaEscalaGlobal;
+    panY = cy - nuevaBaseY + (zCentro - dataProyeccion2D.minZ_grid) * nuevaEscalaGlobal * factorEV;
 
     if (snapS !== null) {
         panX = cx - nuevaBaseX - (snapS - dataProyeccion2D.minS) * nuevaEscalaGlobal;
@@ -659,8 +662,29 @@ function vincularEventosUI() {
         setTimeout(onWindowResize, 310);
     });
 
-    bindEvent('btn-toggle-2d', 'click', toggle2DPanel);
+    const btnToggle2D = document.getElementById('btn-toggle-2d');
+    if (btnToggle2D) {
+        btnToggle2D.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggle2DPanel();
+        });
+    }
     bindEvent('toggle-2d-sidebar', 'click', toggle2DPanel);
+    
+    bindEvent('view-2d-header', 'click', (e) => {
+        if (window.innerWidth <= 768 && document.getElementById('main-wrapper').classList.contains('is-2d-collapsed')) {
+            toggle2DPanel();
+        }
+    });
+
+    bindEvent('select-ve', 'change', (e) => {
+        factorEV = parseFloat(e.target.value) || 1.0;
+        if (dataProyeccion2D) {
+            reconstruirCacheScreen();
+            actualizarHUDCentral();
+        }
+    });
+
     bindEvent('btn-prev-profile', 'click', () => cambiarPerfilSiguiente(-1));
     bindEvent('btn-next-profile', 'click', () => cambiarPerfilSiguiente(1));
 
@@ -1539,8 +1563,13 @@ async function generarRawMeshAsync(renderId) {
     if (canvas2D) canvas2D.classList.remove('canvas-fade-out'); // Fade in suave (UX-06)
 }
 
-function reconstruirCacheScreen() {
+function reconstruirCacheScreen(highRes = false) {
     if (!dataProyeccion2D || !canvas2D) return;
+    
+    if (debounceVectorTimeout) {
+        clearTimeout(debounceVectorTimeout);
+        debounceVectorTimeout = null;
+    }
     
     canvas2DCache.width = canvas2D.width;
     canvas2DCache.height = canvas2D.height;
@@ -1567,11 +1596,11 @@ function reconstruirCacheScreen() {
     const rngS = Math.max(dataProyeccion2D.maxS - dataProyeccion2D.minS, 1);
     const rngZ = Math.max(dataProyeccion2D.maxZ_grid - dataProyeccion2D.minZ_grid, 1);
 
-    const baseEscala = Math.min(w_canvas / rngS, h_canvas / rngZ);
+    const baseEscala = Math.min(w_canvas / rngS, h_canvas / (rngZ * factorEV));
     escalaGlobal = baseEscala * zoom2D;
     
     transX = paddingLeft + (w_canvas - rngS * escalaGlobal) / 2 + panX;
-    transY = paddingTop + (h_canvas + rngZ * escalaGlobal) / 2 + panY; 
+    transY = paddingTop + (h_canvas + rngZ * escalaGlobal * factorEV) / 2 + panY; 
 
     ctxCache.strokeStyle = "rgba(255, 255, 255, 0.1)";
     ctxCache.fillStyle = "#888888"; 
@@ -1581,7 +1610,7 @@ function reconstruirCacheScreen() {
     let pasoZ = rngZ > 1000000 ? 100000 : rngZ > 100000 ? 10000 : rngZ > 20000 ? 2000 : rngZ > 5000 ? 500 : rngZ > 1000 ? 100 : 50;
 
     for (let z = dataProyeccion2D.minZ_grid; z <= dataProyeccion2D.maxZ_grid; z += pasoZ) {
-        let y = transY - (z - dataProyeccion2D.minZ_grid) * escalaGlobal;
+        let y = transY - (z - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
         ctxCache.beginPath(); ctxCache.moveTo(transX, y); ctxCache.lineTo(transX + rngS * escalaGlobal, y); ctxCache.stroke();
         ctxCache.fillText(`${z}m`, transX - 50, y + 4);
     }
@@ -1589,7 +1618,7 @@ function reconstruirCacheScreen() {
     let startS = Math.floor(dataProyeccion2D.minS / pasoS) * pasoS;
     for (let s = startS; s <= dataProyeccion2D.maxS; s += pasoS) {
         let x = transX + (s - dataProyeccion2D.minS) * escalaGlobal;
-        ctxCache.beginPath(); ctxCache.moveTo(x, transY - rngZ * escalaGlobal); ctxCache.lineTo(x, transY + 10); ctxCache.stroke();
+        ctxCache.beginPath(); ctxCache.moveTo(x, transY - rngZ * escalaGlobal * factorEV); ctxCache.lineTo(x, transY + 10); ctxCache.stroke();
         
         ctxCache.save();
         ctxCache.translate(x, transY + 18);
@@ -1600,11 +1629,68 @@ function reconstruirCacheScreen() {
         ctxCache.restore();
     }
 
-    const screenWidth = rngS * escalaGlobal;
-    const screenHeight = rngZ * escalaGlobal;
-    ctxCache.drawImage(rawMeshCanvas, transX, transY - screenHeight, screenWidth, screenHeight);
+    if (highRes) {
+        // Renderizado vectorial directo de alta definición
+        for (let capa of dataProyeccion2D.estratos) {
+            ctxCache.fillStyle = capa.color;
+            ctxCache.strokeStyle = capa.color;
+            ctxCache.lineWidth = 0.5;
+            
+            ctxCache.beginPath();
+            const sCoords = capa.sCoords;
+            const zCoords = capa.zCoords;
+            const caras = capa.caras;
+            
+            // Viewport bounds in world coordinates
+            const viewMinS = dataProyeccion2D.minS + (-transX) / escalaGlobal;
+            const viewMaxS = dataProyeccion2D.minS + (logicalW - transX) / escalaGlobal;
+            const viewMinZ = dataProyeccion2D.minZ_grid + (transY - logicalH) / (escalaGlobal * factorEV);
+            const viewMaxZ = dataProyeccion2D.minZ_grid + (transY) / (escalaGlobal * factorEV);
+            
+            for (let i = 0; i < caras.length; i += 3) {
+                const idx0 = caras[i];
+                const idx1 = caras[i+1];
+                const idx2 = caras[i+2];
+                
+                const s0 = sCoords[idx0], z0 = zCoords[idx0];
+                const s1 = sCoords[idx1], z1 = zCoords[idx1];
+                const s2 = sCoords[idx2], z2 = zCoords[idx2];
+                
+                const triMinS = Math.min(s0, s1, s2);
+                const triMaxS = Math.max(s0, s1, s2);
+                const triMinZ = Math.min(z0, z1, z2);
+                const triMaxZ = Math.max(z0, z1, z2);
+                
+                if (triMaxS < viewMinS || triMinS > viewMaxS || triMaxZ < viewMinZ || triMinZ > viewMaxZ) {
+                    continue;
+                }
+                
+                let x0 = transX + (s0 - dataProyeccion2D.minS) * escalaGlobal;
+                let y0 = transY - (z0 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
+                let x1 = transX + (s1 - dataProyeccion2D.minS) * escalaGlobal;
+                let y1 = transY - (z1 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
+                let x2 = transX + (s2 - dataProyeccion2D.minS) * escalaGlobal;
+                let y2 = transY - (z2 - dataProyeccion2D.minZ_grid) * escalaGlobal * factorEV;
+                
+                ctxCache.moveTo(x0, y0);
+                ctxCache.lineTo(x1, y1);
+                ctxCache.lineTo(x2, y2);
+                ctxCache.closePath();
+            }
+            ctxCache.fill();
+        }
+    } else {
+        const screenWidth = rngS * escalaGlobal;
+        const screenHeight = rngZ * escalaGlobal * factorEV;
+        ctxCache.drawImage(rawMeshCanvas, transX, transY - screenHeight, screenWidth, screenHeight);
+        
+        // Temporizador para redibujar en alta calidad vectorial
+        debounceVectorTimeout = setTimeout(() => {
+            reconstruirCacheScreen(true);
+        }, 150);
+    }
+
     ctxCache.restore();
-    
     dibu2D();
 }
 
@@ -1657,7 +1743,7 @@ function actualizarHUDCentral() {
     const cy = (canvas2D.height / dpr) / 2;
 
     let cursorMundoS = dataProyeccion2D.minS + (cx - transX) / escalaGlobal;
-    let cursorMundoZ = dataProyeccion2D.minZ_grid + (transY - cy) / escalaGlobal;
+    let cursorMundoZ = dataProyeccion2D.minZ_grid + (transY - cy) / (escalaGlobal * factorEV);
 
     if (snapS !== null) cursorMundoS = snapS; 
 

@@ -38,10 +38,14 @@ let panY = 0;
 
 const rawMeshCanvas = document.createElement('canvas');
 const ctxRaw = rawMeshCanvas.getContext('2d', { alpha: true });
+ctxRaw.imageSmoothingEnabled = true;
+ctxRaw.imageSmoothingQuality = 'high';
 let escalaRaw = 1;
 
 const canvas2DCache = document.createElement('canvas');
 const ctxCache = canvas2DCache.getContext('2d', { alpha: false });
+ctxCache.imageSmoothingEnabled = true;
+ctxCache.imageSmoothingQuality = 'high';
 
 let transX = 0, transY = 0, escalaGlobal = 1, minZ_grid = 0;
 let factorEV = 2.0;
@@ -107,6 +111,8 @@ async function init() {
         const container = document.getElementById('canvas-3d');
         canvas2D = document.getElementById('canvas-2d');
         ctx2D = canvas2D.getContext('2d', { alpha: false });
+        ctx2D.imageSmoothingEnabled = true;
+        ctx2D.imageSmoothingQuality = 'high';
 
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0d1520); // fondo azul-noche oscuro

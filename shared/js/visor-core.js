@@ -237,8 +237,28 @@ function puntajeMatchPL(textoPL, bbox) {
 }
 
 function emparejarPerfilesConPLs(perfiles, pls) {
+    // 1. Intentar emparejamiento por coincidencia de nombre (ej. "L2" en "L2.json" y "L2 KEREN.txt")
     for (var pi = 0; pi < perfiles.length; pi++) {
-        var mejorScore = 0.5;
+        var pKey = perfiles[pi].key.toLowerCase().replace('.json', ''); // ej. "l2"
+        for (var pj = 0; pj < pls.length; pj++) {
+            if (pls[pj].asignado) continue;
+            var plKey = pls[pj].key.toLowerCase(); // ej. "l2 keren.txt"
+            
+            // Si el nombre del perfil (ej. "l2") es una palabra aislada o prefijo en el plKey
+            var reg = new RegExp('\\b' + pKey + '\\b');
+            if (reg.test(plKey) || plKey.startsWith(pKey)) {
+                perfiles[pi].txtKey = pls[pj].key;
+                pls[pj].asignado = true;
+                break;
+            }
+        }
+    }
+
+    // 2. Fallback espacial para los que no se emparejaron por nombre
+    for (var pi = 0; pi < perfiles.length; pi++) {
+        if (perfiles[pi].txtKey) continue; // Ya asignado por nombre
+        
+        var mejorScore = 0.05; // Más permisivo que 0.5 para coordinar mejor si hay leves desviaciones o menor cantidad de datos
         var mejorPL = -1;
         for (var pj = 0; pj < pls.length; pj++) {
             if (pls[pj].asignado) continue;
@@ -324,6 +344,7 @@ async function cargarDatosPreestablecidos() {
 
             construirPerfil(p.data, p.key);
             if (p.txtKey && window.DATA_PROGRESIVAS[p.txtKey]) {
+                profileToTxtMap[p.key] = p.txtKey;
                 procesarProgresivasTXT(window.DATA_PROGRESIVAS[p.txtKey], p.txtKey);
             }
             if (!primerValido) primerValido = { nombre: p.key, data: p.data };

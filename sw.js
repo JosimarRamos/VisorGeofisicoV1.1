@@ -1,4 +1,4 @@
-const CACHE = 'visor-cache-v8';
+const CACHE = 'visor-cache-v9';
 const PRECACHE = [
   './',
   'index.html',

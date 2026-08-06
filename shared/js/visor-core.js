@@ -59,7 +59,7 @@ function disableSmoothing(ctx) {
 disableSmoothing(ctxRaw);
 disableSmoothing(ctxCache);
 let escalaRaw = 1;
-let factorEV = 2.0;
+let factorEV = 1.0;
 const dpr = Math.min(window.devicePixelRatio || 1, 2); 
 
 

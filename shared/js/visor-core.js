@@ -33,6 +33,7 @@ let laserMesh = null;
 let snapS = null; 
 
 let ultimoPunto = null; 
+let ultimoProf = null; 
 
 let zoom2D = 1.0;
 let panX = 0;
@@ -1374,6 +1375,7 @@ async function activarPerfil2D(nombre, data) {
     laserMesh.visible = false;
     document.getElementById('laser-info').style.display = 'none';
     ultimoPunto = null;
+    ultimoProf = null;
     actualizarGeoUI();
 
     await new Promise(r => setTimeout(r, 20)); 
@@ -1734,7 +1736,7 @@ function puntoGeo() {
 function abrirGoogleEarth() {
     const g = puntoGeo();
     if (!g || isNaN(g.lat) || isNaN(g.lon)) return;
-    const url = `https://earth.google.com/web/@${g.lat.toFixed(6)},${g.lon.toFixed(6)},${ultimoPunto.z.toFixed(1)}z`;
+    const url = `https://earth.google.com/web/search/${g.lat.toFixed(6)},${g.lon.toFixed(6)}`;
     window.open(url, '_blank');
 }
 
@@ -1745,15 +1747,17 @@ function descargarKML() {
     const perfil = (activeProfileName || 'perfil').replace('.json', '');
     const sTxt = ultimoPunto.s.toFixed(1);
     const zTxt = ultimoPunto.z.toFixed(1);
+    const profTxt = (ultimoProf !== null && isFinite(ultimoProf)) ? ultimoProf.toFixed(1) + ' m' : 'N/A';
 
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>Punto ${perfil}</name>
     <Placemark>
-      <name>${perfil} | S ${sTxt} m | Z ${zTxt} m</name>
+      <name>${perfil} | Prog. Aprox.: ${sTxt} m | Prof.: ${profTxt}</name>
       <description>Perfil: ${perfil}
-Progresiva: ${sTxt} m
+Prog. Aprox.: ${sTxt} m
+Prof.: ${profTxt}
 Elevacion: ${zTxt} m
 E: ${ultimoPunto.e.toFixed(2)}  N: ${ultimoPunto.n.toFixed(2)}</description>
       <Point>
@@ -1814,6 +1818,7 @@ function actualizarHUDCentral() {
             pedirRender();
         }
         ultimoPunto = null;
+        ultimoProf = null;
         actualizarGeoUI();
         return;
     }
@@ -1868,17 +1873,21 @@ function actualizarHUDCentral() {
                 if (diff >= 0) {
                     profTerreno = diff.toFixed(1) + " m";
                     colorProf = "#81c784";
+                    ultimoProf = diff;
                 } else {
                     profTerreno = "Aire";
                     colorProf = "#ffb74d";
+                    ultimoProf = null;
                 }
             } else {
                 profTerreno = "Lejos";
                 colorProf = "#aaa";
+                ultimoProf = null;
             }
         } else {
             profTerreno = "Sin Terreno";
             colorProf = "#aaa";
+            ultimoProf = null;
         }
         
         elProf.innerText = profTerreno;
@@ -1956,7 +1965,7 @@ function actualizarUILista(nombre, tipo, rawData = null) {
             if (activeProfileName === nombre) {
                 activeProfileName = null; dataProyeccion2D = null; currentRenderId++; isProcessing2D = false;
                 laserMesh.visible = false; document.getElementById('laser-info').style.display = 'none';
-                ultimoPunto = null; actualizarGeoUI();
+                ultimoPunto = null; ultimoProf = null; actualizarGeoUI();
                 document.getElementById('active-profile-title').innerText = "[Ninguno]";
                 ctx2D.fillStyle = '#0a0a0a'; ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
             }

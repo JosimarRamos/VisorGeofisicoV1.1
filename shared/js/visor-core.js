@@ -237,40 +237,14 @@ function puntajeMatchPL(textoPL, bbox) {
 }
 
 function emparejarPerfilesConPLs(perfiles, pls) {
-    // 1. Intentar emparejamiento por coincidencia de nombre (ej. "L2" en "L2.json" y "L2 KEREN.txt")
     for (var pi = 0; pi < perfiles.length; pi++) {
-        var pKey = perfiles[pi].key.toLowerCase().replace('.json', ''); // ej. "l2"
+        var pIdx = perfiles[pi].index;
         for (var pj = 0; pj < pls.length; pj++) {
-            if (pls[pj].asignado) continue;
-            var plKey = pls[pj].key.toLowerCase(); // ej. "l2 keren.txt"
-            
-            // Si el nombre del perfil (ej. "l2") es una palabra aislada o prefijo en el plKey
-            var reg = new RegExp('\\b' + pKey + '\\b');
-            if (reg.test(plKey) || plKey.startsWith(pKey)) {
+            if (pls[pj].index === pIdx) {
                 perfiles[pi].txtKey = pls[pj].key;
                 pls[pj].asignado = true;
                 break;
             }
-        }
-    }
-
-    // 2. Fallback espacial para los que no se emparejaron por nombre
-    for (var pi = 0; pi < perfiles.length; pi++) {
-        if (perfiles[pi].txtKey) continue; // Ya asignado por nombre
-        
-        var mejorScore = 0.05; // Más permisivo que 0.5 para coordinar mejor si hay leves desviaciones o menor cantidad de datos
-        var mejorPL = -1;
-        for (var pj = 0; pj < pls.length; pj++) {
-            if (pls[pj].asignado) continue;
-            var score = puntajeMatchPL(pls[pj].text, perfiles[pi].bbox);
-            if (score > mejorScore) {
-                mejorScore = score;
-                mejorPL = pj;
-            }
-        }
-        if (mejorPL >= 0) {
-            perfiles[pi].txtKey = pls[mejorPL].key;
-            pls[mejorPL].asignado = true;
         }
     }
 }
@@ -321,12 +295,12 @@ async function cargarDatosPreestablecidos() {
             var perfilKey = perfilKeys[perfilKeys.length - 1];
             var perfilData = window.DATA_PERFILES[perfilKey];
             var bbox = calcularBBoxPerfil(perfilData);
-            perfilesCandidatos.push({ key: perfilKey, data: perfilData, bbox: bbox });
+            perfilesCandidatos.push({ key: perfilKey, data: perfilData, bbox: bbox, index: i });
 
             try {
                 await loadScript(rutaProyecto + 'pl_' + i + '_data.js');
                 var plKeys = Object.keys(window.DATA_PROGRESIVAS);
-                plsCandidatos.push({ key: plKeys[plKeys.length - 1], text: window.DATA_PROGRESIVAS[plKeys[plKeys.length - 1]] });
+                plsCandidatos.push({ key: plKeys[plKeys.length - 1], text: window.DATA_PROGRESIVAS[plKeys[plKeys.length - 1]], index: i });
             } catch(e) {
                 // PL opcional
             }

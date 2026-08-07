@@ -128,6 +128,20 @@ Los PLs se vinculan automáticamente al perfil correcto mediante **coincidencia 
 
 En la UI, la sección "4. DATOS PROGRESIVAS" permite reasignar manualmente mediante dropdown si el auto-match fallara.
 
+### Coordenada UTM del proyecto y salidas Google Earth
+
+- Opcional, por proyecto, en `config.js`:
+  ```js
+  window.PROYECTO_UTM_ZONE = 20;             // zona UTM
+  window.PROYECTO_UTM_HEMISPHERE = 'S';      // 'N' o 'S'
+  ```
+- Sin esta configuración, el botón 🌐 (header 2D) se oculta y `shared/js/utm.js` no se usa; los demás proyectos quedan intactos.
+- El punto analizado en la vista 2D (centro de la cruz) guarda su E,N real (`ultimoPunto`) derivado de la interpolación del PL (`obtenerCoordenadasReales`).
+- Botón 🌐 → menú con 2 opciones:
+  1. **Ver en Google Earth**: abre `https://earth.google.com/web/@lat,lng,altz` (lat/lon convertidos con `utmToLatLon`).
+  2. **Descargar KML**: genera un `.kml` con placemark etiquetado (perfil, progresiva, elevación).
+- En la esquina inferior izquierda de la vista 3D se muestra un badge discreto con `E / N` del punto en análisis (`#coords-3d`).
+
 ## Cómo agregar un nuevo proyecto
 
 1. Elegir el siguiente índice libre de la tabla de tokens.

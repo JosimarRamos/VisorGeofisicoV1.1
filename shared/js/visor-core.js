@@ -32,6 +32,8 @@ let laserMesh = null;
 
 let snapS = null; 
 
+let ultimoPunto = null; 
+
 let zoom2D = 1.0;
 let panX = 0;
 let panY = 0;
@@ -865,6 +867,35 @@ function vincularEventosUI() {
 
     window.addEventListener('resize', onWindowResize);
     
+    if (window.PROYECTO_UTM_ZONE) {
+        const geoWrap = document.getElementById('geo-wrap');
+        const btnGeo = document.getElementById('btn-geo');
+        const geoMenu = document.getElementById('geo-menu');
+
+        btnGeo.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const abierto = geoMenu.style.display === 'block';
+            geoMenu.style.display = abierto ? 'none' : 'block';
+            btnGeo.setAttribute('aria-expanded', String(!abierto));
+        });
+
+        geoMenu.querySelectorAll('.geo-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                const accion = opt.dataset.action;
+                geoMenu.style.display = 'none';
+                btnGeo.setAttribute('aria-expanded', 'false');
+                if (accion === 'earth') abrirGoogleEarth();
+                else if (accion === 'kml') descargarKML();
+            });
+        });
+
+        document.addEventListener('click', () => { geoMenu.style.display = 'none'; btnGeo.setAttribute('aria-expanded', 'false'); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { geoMenu.style.display = 'none'; btnGeo.setAttribute('aria-expanded', 'false'); } });
+    } else {
+        const geoWrap = document.getElementById('geo-wrap');
+        if (geoWrap) geoWrap.style.display = 'none';
+    }
+    
     if (canvas2D) {
         let isDragging2D = false;
         let lastPanClientX = 0, lastPanClientY = 0;
@@ -1342,6 +1373,8 @@ async function activarPerfil2D(nombre, data) {
 
     laserMesh.visible = false;
     document.getElementById('laser-info').style.display = 'none';
+    ultimoPunto = null;
+    actualizarGeoUI();
 
     await new Promise(r => setTimeout(r, 20)); 
 
@@ -1692,6 +1725,73 @@ function dibu2D() {
     }
 }
 
+function puntoGeo() {
+    if (!ultimoPunto || !window.PROYECTO_UTM_ZONE) return null;
+    const h = (window.PROYECTO_UTM_HEMISPHERE || 'S').toUpperCase();
+    return window.utmToLatLon(ultimoPunto.e, ultimoPunto.n, window.PROYECTO_UTM_ZONE, h);
+}
+
+function abrirGoogleEarth() {
+    const g = puntoGeo();
+    if (!g || isNaN(g.lat) || isNaN(g.lon)) return;
+    const url = `https://earth.google.com/web/@${g.lat.toFixed(6)},${g.lon.toFixed(6)},${ultimoPunto.z.toFixed(1)}z`;
+    window.open(url, '_blank');
+}
+
+function descargarKML() {
+    const g = puntoGeo();
+    if (!g || isNaN(g.lat) || isNaN(g.lon)) return;
+
+    const perfil = (activeProfileName || 'perfil').replace('.json', '');
+    const sTxt = ultimoPunto.s.toFixed(1);
+    const zTxt = ultimoPunto.z.toFixed(1);
+
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Punto ${perfil}</name>
+    <Placemark>
+      <name>${perfil} | S ${sTxt} m | Z ${zTxt} m</name>
+      <description>Perfil: ${perfil}
+Progresiva: ${sTxt} m
+Elevacion: ${zTxt} m
+E: ${ultimoPunto.e.toFixed(2)}  N: ${ultimoPunto.n.toFixed(2)}</description>
+      <Point>
+        <coordinates>${g.lon.toFixed(6)},${g.lat.toFixed(6)},${ultimoPunto.z.toFixed(1)}</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`;
+
+    const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `punto_${perfil.replace(/[^a-zA-Z0-9_-]/g, '_')}_S${sTxt}.kml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function actualizarGeoUI() {
+    const elCoords = document.getElementById('coords-3d');
+    if (!elCoords) return;
+
+    if (ultimoPunto) {
+        elCoords.textContent = `E ${ultimoPunto.e.toFixed(2)}  N ${ultimoPunto.n.toFixed(2)}`;
+        elCoords.style.display = 'block';
+    } else {
+        elCoords.style.display = 'none';
+    }
+
+    const btnGeo = document.getElementById('btn-geo');
+    if (btnGeo) {
+        if (ultimoPunto) btnGeo.classList.remove('disabled');
+        else btnGeo.classList.add('disabled');
+    }
+}
+
 function actualizarHUDCentral() {
     if (!dataProyeccion2D || isProcessing2D) return;
 
@@ -1713,6 +1813,8 @@ function actualizarHUDCentral() {
             laserMesh.visible = false;
             pedirRender();
         }
+        ultimoPunto = null;
+        actualizarGeoUI();
         return;
     }
 
@@ -1723,7 +1825,11 @@ function actualizarHUDCentral() {
         xScene = coordsReales.x - centerOffset.x;
         yScene = coordsReales.y - centerOffset.y;
         zScene = cursorMundoZ - centerOffset.z;
+        ultimoPunto = { e: coordsReales.x, n: coordsReales.y, z: cursorMundoZ, s: cursorMundoS };
+    } else {
+        ultimoPunto = null;
     }
+    actualizarGeoUI();
 
     if (Number.isFinite(xScene) && Number.isFinite(yScene) && Number.isFinite(zScene)) {
         const viejaX = laserMesh.position.x;
@@ -1850,6 +1956,7 @@ function actualizarUILista(nombre, tipo, rawData = null) {
             if (activeProfileName === nombre) {
                 activeProfileName = null; dataProyeccion2D = null; currentRenderId++; isProcessing2D = false;
                 laserMesh.visible = false; document.getElementById('laser-info').style.display = 'none';
+                ultimoPunto = null; actualizarGeoUI();
                 document.getElementById('active-profile-title').innerText = "[Ninguno]";
                 ctx2D.fillStyle = '#0a0a0a'; ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
             }

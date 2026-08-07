@@ -1,4 +1,4 @@
-const CACHE = 'visor-cache-v10';
+const CACHE = 'visor-cache-v11';
 const PRECACHE = [
   './',
   'index.html',
@@ -6,6 +6,7 @@ const PRECACHE = [
   'shared/js/three.min.js',
   'shared/js/OrbitControls.js',
   'shared/js/tokens.js',
+  'shared/js/utm.js',
   'shared/js/visor-core.js'
 ];
 

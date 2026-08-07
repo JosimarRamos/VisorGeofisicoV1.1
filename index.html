@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="shared/css/visor-styles.css">
     <script src="shared/js/three.min.js"></script>
     <script src="shared/js/OrbitControls.js"></script>
+    <script src="shared/js/utm.js"></script>
     <script>if('serviceWorker' in navigator){window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }))}</script>
 </head>
 <body>
@@ -112,6 +113,7 @@
             <div id="view-3d" class="viewport">
                 <button id="btn-fullscreen" title="Pantalla Completa" style="position: absolute; top: 15px; right: 15px; background: rgba(30, 30, 30, 0.8); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 6px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 16px; transition: background 0.2s, color 0.2s;">⛶</button>
                 <div id="canvas-3d"></div>
+                <div id="coords-3d"></div>
             </div>
 
             <div id="toggle-2d-sidebar" title="Mostrar Vista 2D">▶</div>
@@ -132,6 +134,13 @@
                             <option value="3">EV: 3.0x</option>
                             <option value="5">EV: 5.0x</option>
                         </select>
+                        <div id="geo-wrap" style="margin-left: 6px; position: relative;">
+                            <button id="btn-geo" class="btn-geo disabled" title="Punto analizado: abrir en Google Earth o descargar KML" aria-haspopup="true" aria-expanded="false">🌐</button>
+                            <div id="geo-menu" style="display: none;">
+                                <div class="geo-option" data-action="earth">🌐 Ver en Google Earth</div>
+                                <div class="geo-option" data-action="kml">📥 Descargar KML</div>
+                            </div>
+                        </div>
                     </div>
 
                     <div style="display:flex; align-items:center; gap:6px;">

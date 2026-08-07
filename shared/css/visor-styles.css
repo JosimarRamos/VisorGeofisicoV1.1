@@ -80,6 +80,24 @@ body {
 
 #canvas-3d { width: 100%; height: 100%; }
 
+/* Coordenadas discretas del punto analizado (esquina inferior izquierda del 3D) */
+#coords-3d { 
+    position: absolute; 
+    bottom: 10px; 
+    left: 12px; 
+    z-index: 10; 
+    display: none; 
+    color: rgba(255, 255, 255, 0.55); 
+    font-family: monospace; 
+    font-size: 10px; 
+    letter-spacing: 0.5px; 
+    background: rgba(13, 21, 32, 0.35); 
+    padding: 4px 8px; 
+    border-radius: 4px; 
+    pointer-events: none; 
+    line-height: 1.4; 
+}
+
 #canvas-2d { flex-grow: 1; width: 100%; height: 100%; display: block; background-color: #0a0a0a; cursor: grab; outline: none; touch-action: none; overscroll-behavior: none; /* CONTROL DE NITIDEZ NATIVA (Nulo impacto en rendimiento) */
     image-rendering: -moz-crisp-edges;         /* Firefox antiguo */
     image-rendering: -webkit-crisp-edges;      /* Safari / Chrome antiguo */
@@ -169,6 +187,14 @@ input[type="range"] { background: #222; border: 1px solid #444; color: white; bo
 
 .btn-profile-nav { background: rgba(255, 255, 255, 0.08); border: 1px solid #444; color: var(--text-color); border-radius: 4px; width: 26px; height: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: background 0.2s, color 0.2s; user-select: none; }
 .btn-profile-nav:hover { background: var(--accent-color); color: #000; border-color: var(--accent-color); }
+
+/* Boton Geo (Google Earth / KML) del header 2D */
+.btn-geo { background: rgba(255, 255, 255, 0.08); border: 1px solid #444; color: var(--text-color); border-radius: 4px; width: 30px; height: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: background 0.2s, color 0.2s; user-select: none; box-sizing: border-box; }
+.btn-geo:hover:not(.disabled) { background: var(--accent-color); color: #000; border-color: var(--accent-color); }
+.btn-geo.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+#geo-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 300; background: #1a1a1a; border: 1px solid var(--border-color); border-radius: 6px; min-width: 190px; box-shadow: 0 6px 18px rgba(0,0,0,0.5); overflow: hidden; }
+.geo-option { padding: 9px 12px; font-size: 12px; color: var(--text-color); cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+.geo-option:hover { background: rgba(41, 182, 246, 0.15); color: var(--accent-color); }
 
 /* HUD de Datos (Barra de estado delgada en la base del viewport) */
 #laser-info { 
